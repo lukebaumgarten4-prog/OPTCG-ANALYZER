@@ -1,0 +1,56 @@
+# Roda os robôs de coleta e salva os dados novos no próprio repositório.
+# É isto que faz o site se manter atualizado sozinho, sem você abrir o PC.
+name: Atualizar dados
+
+on:
+  schedule:
+    # 06:00 UTC = 03:00 em Brasília. Roda todo dia.
+    - cron: '0 6 * * *'
+  # Permite rodar na mão pelo botão "Run workflow" na aba Actions.
+  workflow_dispatch:
+
+# Sem isto a Action não consegue salvar (fazer commit) no repositório.
+permissions:
+  contents: write
+
+# Evita duas execuções ao mesmo tempo brigando pelo mesmo commit.
+concurrency:
+  group: atualizar-dados
+  cancel-in-progress: false
+
+jobs:
+  coletar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Baixar o repositório
+        uses: actions/checkout@v4
+
+      - name: Preparar o Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Coletar as cartas (site oficial da Bandai)
+        run: node scripts/coletar-cartas.mjs
+
+      - name: Coletar as decklists (onepiecetopdecks.com)
+        run: node scripts/coletar-decks.mjs
+
+      # Os dois scripts acima falham com erro se vier pouca coisa, então se
+      # chegamos aqui os arquivos em data/ estão saudáveis.
+      - name: Salvar o que mudou
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "Nada mudou desde a última coleta."
+          else
+            decks=$(node -p "require('./data/decks.json').total")
+            cartas=$(node -p "require('./data/cartas.json').total")
+            git commit -m "dados: ${decks} decks e ${cartas} cartas ($(date -u '+%d/%m/%Y'))"
+            git push
+            echo "Dados atualizados: ${decks} decks, ${cartas} cartas."
+          fi

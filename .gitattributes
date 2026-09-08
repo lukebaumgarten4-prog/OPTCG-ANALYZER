@@ -1,0 +1,7 @@
+# Padroniza a quebra de linha: assim o projeto funciona igual no Windows,
+# no Linux e no servidor que roda a automacao.
+* text=auto eol=lf
+
+# Estes precisam de quebra de linha do Windows para funcionar direito.
+*.bat text eol=crlf
+*.cmd text eol=crlf

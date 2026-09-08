@@ -1,0 +1,29 @@
+{
+  "_comentario": "Paginas do onepiecetopdecks.com que o robo vai ler. Para adicionar um set novo, e so copiar um bloco e trocar a url, o rotulo e o formato. Nada mais precisa ser mexido.",
+  "paginas": [
+    {
+      "url": "https://onepiecetopdecks.com/deck-list/english-op17-deck-list-the-worlds-strongest-warriors/",
+      "formato": "OP17",
+      "regiao": "EN",
+      "rotulo": "EN - OP17 The World's Strongest Warriors"
+    },
+    {
+      "url": "https://onepiecetopdecks.com/deck-list/english-op16-deck-list-the-time-of-battle/",
+      "formato": "OP16",
+      "regiao": "EN",
+      "rotulo": "EN - OP16 The Time of Battle"
+    },
+    {
+      "url": "https://onepiecetopdecks.com/deck-list/japan-op17-deck-list-the-worlds-strongest-warriors/",
+      "formato": "OP17",
+      "regiao": "JP",
+      "rotulo": "JP - OP17 The World's Strongest Warriors"
+    },
+    {
+      "url": "https://onepiecetopdecks.com/deck-list/japan-op16-deck-list-the-time-of-battle/",
+      "formato": "OP16",
+      "regiao": "JP",
+      "rotulo": "JP - OP16 The Time of Battle"
+    }
+  ]
+}

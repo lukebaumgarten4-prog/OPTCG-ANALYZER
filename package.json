@@ -1,0 +1,13 @@
+{
+  "name": "optcg-analyzer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Analise dos decks do One Piece Card Game que deram top, com dados do onepiecetopdecks.com",
+  "scripts": {
+    "start": "node serve.js",
+    "atualizar": "node scripts/coletar-cartas.mjs && node scripts/coletar-decks.mjs",
+    "atualizar-decks": "node scripts/coletar-decks.mjs",
+    "atualizar-cartas": "node scripts/coletar-cartas.mjs"
+  }
+}
