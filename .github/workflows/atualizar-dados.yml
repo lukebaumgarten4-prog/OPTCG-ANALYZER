@@ -35,7 +35,12 @@ jobs:
       - name: Coletar as cartas (site oficial da Bandai)
         run: node scripts/coletar-cartas.mjs
 
-      # As três coletas abaixo usam continue-on-error de propósito: se um dos
+      - name: Coletar os preços (TCGplayer via tcgcsv.com)
+        id: precos
+        continue-on-error: true
+        run: node scripts/coletar-precos.mjs
+
+      # As coletas de decklist usam continue-on-error de propósito: se um dos
       # sites sair do ar ou mudar de formato, as outras fontes seguem atualizando
       # e a junção reaproveita o último arquivo bom da fonte que falhou.
       - name: Coletar decklists do gumgum.gg
@@ -78,3 +83,4 @@ jobs:
           echo "### Coleta do dia" >> $GITHUB_STEP_SUMMARY
           echo "- gumgum.gg: ${{ steps.gumgum.outcome }}" >> $GITHUB_STEP_SUMMARY
           echo "- onepiecetopdecks.com: ${{ steps.topdecks.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- preços TCGplayer: ${{ steps.precos.outcome }}" >> $GITHUB_STEP_SUMMARY

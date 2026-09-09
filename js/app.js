@@ -43,6 +43,8 @@ async function iniciar() {
   montarFiltros();
   montarStatus();
   ligarEventos();
+  lerEndereco();      // abre direto na aba que veio no link
+  marcarAbaAtiva();
   renderizar();
 }
 
@@ -121,9 +123,15 @@ function ligarEventos() {
   $('#abas').addEventListener('click', (e) => {
     const btn = e.target.closest('.aba');
     if (!btn) return;
-    document.querySelectorAll('.aba').forEach((a) => a.classList.toggle('ativa', a === btn));
     sel.tela = btn.dataset.tela;
+    sel.deckAberto = null;
+    marcarAbaAtiva();
     renderizar();
+  });
+
+  // Voltar/avançar do navegador e link colado trocam de aba de verdade.
+  window.addEventListener('hashchange', () => {
+    if (lerEndereco()) { marcarAbaAtiva(); renderizar({ semEndereco: true }); }
   });
 
   // Tudo que acontece dentro das telas passa por aqui (delegação de eventos,
@@ -147,14 +155,51 @@ function ligarEventos() {
       return;
     }
     if (e.target.id === 'btn-mais-decks') { sel.limiteDecks += 100; renderizar(); return; }
-    if (e.target.id === 'btn-copiar-lista') { copiarLista(e.target); }
+    if (e.target.id === 'btn-copiar-lista') { copiarConsenso(e.target); return; }
+
+    const copiar = e.target.closest('[data-copiar-deck]');
+    if (copiar) {
+      const d = estado.decks.find((x) => x.id === copiar.dataset.copiarDeck);
+      if (d) copiarTexto(textoDaLista(d.lider, d.cartas), copiar);
+    }
   });
+}
+
+/* -------------------- endereço (permite compartilhar link) -------------------- */
+
+const TELAS_VALIDAS = ['meta', 'cartas', 'consenso', 'decks', 'comparar'];
+
+/** Lê o #hash e devolve true se ele mudou alguma coisa. */
+function lerEndereco() {
+  const p = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const tela = p.get('tela');
+  const lider = p.get('lider');
+  let mudou = false;
+
+  if (tela && TELAS_VALIDAS.includes(tela) && tela !== sel.tela) { sel.tela = tela; mudou = true; }
+  if (lider !== null && lider !== sel.lider) { sel.lider = lider; mudou = true; }
+  return mudou;
+}
+
+function escreverEndereco() {
+  const p = new URLSearchParams();
+  p.set('tela', sel.tela);
+  // O líder só faz sentido nas telas que têm seletor de líder.
+  if (sel.lider && (sel.tela === 'cartas' || sel.tela === 'consenso')) p.set('lider', sel.lider);
+
+  const novo = `#${p}`;
+  if (novo !== location.hash) history.replaceState(null, '', novo);
+}
+
+function marcarAbaAtiva() {
+  document.querySelectorAll('.aba').forEach((a) => a.classList.toggle('ativa', a.dataset.tela === sel.tela));
 }
 
 /* -------------------- render -------------------- */
 
-function renderizar() {
+function renderizar({ semEndereco = false } = {}) {
   const decks = decksFiltrados();
+  if (!semEndereco) escreverEndereco();
 
   $('#resumo-filtro').innerHTML = `<b>${decks.length.toLocaleString('pt-BR')}</b> de ${estado.decks.length.toLocaleString('pt-BR')} decks`;
 
@@ -179,7 +224,14 @@ function renderizar() {
   }
 }
 
-function copiarLista(botao) {
+/** Texto no formato "4x OP17-031 Yasopp", com o líder na primeira linha. */
+function textoDaLista(lider, cartas) {
+  const c = estado.cartas[lider];
+  const cabecalho = `1x ${lider} ${c ? c.nome : ''} (líder)`.trim();
+  return `${cabecalho}\n${listaEmTexto(cartas.map((x) => ({ ...x, nome: (estado.cartas[x.id] || {}).nome || x.id })))}`;
+}
+
+function copiarConsenso(botao) {
   const decks = decksFiltrados();
   // Tem que ser exatamente o líder que a tela está mostrando: quando nada foi
   // escolhido, a tela cai no líder mais jogado, não no primeiro deck da lista.
@@ -188,11 +240,14 @@ function copiarLista(botao) {
   if (!escolhido) return;
 
   const consenso = deckConsenso(escolhido.decks);
-  const texto = `1x ${escolhido.lider} ${escolhido.nome} (líder)\n${listaEmTexto(consenso.cartas)}`;
+  copiarTexto(textoDaLista(escolhido.lider, consenso.cartas), botao);
+}
 
+function copiarTexto(texto, botao) {
+  const original = botao.textContent;
   const avisar = (msg) => {
     botao.textContent = msg;
-    setTimeout(() => { botao.textContent = 'copiar lista em texto'; }, 1800);
+    setTimeout(() => { botao.textContent = original; }, 1800);
   };
 
   const planoB = () => {

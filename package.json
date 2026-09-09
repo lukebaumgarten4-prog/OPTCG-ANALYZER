@@ -1,15 +1,16 @@
 {
   "name": "optcg-analyzer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
-  "description": "Analise dos decks do One Piece Card Game que deram top, com dados do gumgum.gg e do onepiecetopdecks.com",
+  "description": "Analise dos decks do One Piece Card Game que deram top, com dados do gumgum.gg, do onepiecetopdecks.com e precos da TCGplayer",
   "scripts": {
     "start": "node serve.js",
-    "atualizar": "npm run atualizar-cartas && npm run atualizar-gumgum && npm run atualizar-topdecks && npm run juntar",
+    "atualizar": "npm run atualizar-cartas && npm run atualizar-precos && npm run atualizar-gumgum && npm run atualizar-topdecks && npm run juntar",
     "atualizar-cartas": "node scripts/coletar-cartas.mjs",
     "atualizar-gumgum": "node scripts/coletar-gumgum.mjs",
     "atualizar-topdecks": "node scripts/coletar-decks.mjs",
-    "juntar": "node scripts/juntar-decks.mjs"
+    "juntar": "node scripts/juntar-decks.mjs",
+    "atualizar-precos": "node scripts/coletar-precos.mjs"
   }
 }

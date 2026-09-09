@@ -1,10 +1,11 @@
 // Desenho das telas. Cada funcao recebe os decks ja filtrados e devolve HTML.
 
-import { carta, NOME_FONTE } from './dados.js';
+import { carta, preco, NOME_FONTE } from './dados.js';
 import {
   metaPorLider, estatCartas, deckConsenso, perfilDeck,
   compararDecks, evolucao, ROTULO_CATEGORIA,
 } from './analise.js';
+import { perfilCompleto } from './analise-deck.js';
 
 /* -------------------- ajudantes -------------------- */
 
@@ -16,6 +17,8 @@ const num = (v, casas = 1) => (v === null || v === undefined || Number.isNaN(v) 
 const pct = (v) => `${num(v, 1)}%`;
 // 2234 -> "2.234", para os números grandes não virarem uma paredinha de dígitos
 const inteiro = (v) => (typeof v === 'number' ? v.toLocaleString('pt-BR') : v);
+// Os preços vêm da TCGplayer, que é em dólar.
+const moeda = (v) => (typeof v === 'number' ? `$${v.toFixed(2)}` : '—');
 
 const CORES = { Red: '--cor-red', Green: '--cor-green', Blue: '--cor-blue', Purple: '--cor-purple', Black: '--cor-black', Yellow: '--cor-yellow' };
 export const corCss = (cor) => `var(${CORES[(cor || '').split('/')[0].trim()] || '--texto-3'})`;
@@ -168,7 +171,16 @@ export function telaCartas(decks, sel) {
   if (!porLider.length) return vazio('Nenhum deck bate com os filtros escolhidos.');
 
   const escolhido = porLider.find((l) => l.lider === sel.lider) || porLider[0];
-  const estat = estatCartas(escolhido.decks).filter((e) => !sel.busca || e.nome.toLowerCase().includes(sel.busca) || e.id.toLowerCase().includes(sel.busca));
+
+  // Uma passada só: antes isto rodava quatro vezes, uma por KPI.
+  const todas = estatCartas(escolhido.decks);
+  const porClasse = { nucleo: 0, flex: 0, tech: 0 };
+  for (const e of todas) porClasse[e.categoria]++;
+
+  const busca = (sel.busca || '').toLowerCase();
+  const estat = busca
+    ? todas.filter((e) => e.nome.toLowerCase().includes(busca) || e.id.toLowerCase().includes(busca))
+    : todas;
 
   return `
     <h2 class="titulo">Estatística de cartas por líder</h2>
@@ -179,9 +191,9 @@ export function telaCartas(decks, sel) {
 
     <div class="grade grade-4">
       ${kpi(escolhido.decks.length, 'decks deste líder')}
-      ${kpi(estatCartas(escolhido.decks).filter((e) => e.categoria === 'nucleo').length, 'cartas de núcleo')}
-      ${kpi(estatCartas(escolhido.decks).filter((e) => e.categoria === 'flex').length, 'cartas flex')}
-      ${kpi(estatCartas(escolhido.decks).filter((e) => e.categoria === 'tech').length, 'cartas tech')}
+      ${kpi(porClasse.nucleo, 'cartas de núcleo')}
+      ${kpi(porClasse.flex, 'cartas flex')}
+      ${kpi(porClasse.tech, 'cartas tech')}
     </div>
 
     <div class="secao">
@@ -227,89 +239,159 @@ export function telaConsenso(decks, sel) {
 
   const escolhido = porLider.find((l) => l.lider === sel.lider) || porLider[0];
   const consenso = deckConsenso(escolhido.decks);
-  const perfil = perfilDeck(consenso.cartas.map((c) => ({ id: c.id, qtd: c.qtd })));
+  const lista = consenso.cartas.map((c) => ({ id: c.id, qtd: c.qtd }));
+  const perfil = perfilCompleto(lista);
 
-  const grupos = {};
-  for (const c of consenso.cartas) {
-    const chave = c.custo ?? '—';
-    (grupos[chave] = grupos[chave] || []).push(c);
-  }
+  // Ordenada por custo, que é como se lê uma decklist.
+  const ordenada = [...consenso.cartas].sort(
+    (a, b) => (a.custo ?? 99) - (b.custo ?? 99) || b.qtd - a.qtd || a.nome.localeCompare(b.nome)
+  );
 
   return `
     <h2 class="titulo">Deck consenso — ${esc(escolhido.nome)}</h2>
-    <p class="legenda">Lista de 50 cartas montada a partir dos ${escolhido.decks.length} decks deste líder que passaram nos filtros.
+    <p class="legenda">Lista de 50 cartas montada a partir dos ${inteiro(escolhido.decks.length)} decks deste líder que passaram nos filtros.
     Cada carta entra com a média de cópias arredondada de um jeito que o total fecha exatamente em 50.
     Não é uma lista "certa" — é o retrato do que a maioria está jogando, e os slots <b>flex</b> são justamente onde as listas discordam.</p>
 
     ${seletorLider(porLider, escolhido.lider)}
 
-    <div class="grade grade-4">
-      ${kpi(consenso.total, 'cartas na lista')}
-      ${kpi(num(perfil.custoMedio, 2), 'custo médio')}
-      ${kpi(perfil.counterCartas, 'cartas com counter')}
-      ${kpi(`${(perfil.counterTotal / 1000).toFixed(0)}k`, 'counter total')}
-    </div>
-
-    <div class="secao grade grade-2">
-      <div class="cartao">
-        <h3 class="rotulo-bloco">Curva de custo</h3>
-        ${graficoCurva(perfil.curva)}
-      </div>
-      <div class="cartao">
-        <h3 class="rotulo-bloco">Composição</h3>
-        ${listaSimples(Object.entries(perfil.tipos).map(([k, v]) => [traduzirTipo(k), v]))}
-        <div style="height:12px"></div>
-        <h3 class="rotulo-bloco">Traços mais presentes</h3>
-        ${listaSimples(perfil.tracos.slice(0, 6))}
-      </div>
-    </div>
-
     <div class="secao">
-      <h3>A lista (agrupada por custo)</h3>
-      <button class="chip" id="btn-copiar-lista" style="margin-bottom:10px">copiar lista em texto</button>
-      <div class="grade grade-2">
-        ${Object.keys(grupos).sort((a, b) => (a === '—' ? 99 : +a) - (b === '—' ? 99 : +b)).map((custo) => `
-          <div class="cartao">
-            <div style="font-size:12px;color:var(--texto-3);margin-bottom:8px">
-              Custo ${custo} — ${grupos[custo].reduce((s, c) => s + c.qtd, 0)} cartas
-            </div>
-            <div class="lista-cartas">
-              ${grupos[custo].map((c) => `
-                <div class="carta-linha">
-                  <span class="carta-qtd">${c.qtd}x</span>
-                  ${imgCarta(c.id)}
-                  <div class="carta-info">
-                    <div class="carta-nome">${esc(c.nome)}</div>
-                    <div class="carta-meta">${esc(c.id)} · ${esc(traduzirTipo(c.tipo))}${c.counter ? ` · counter ${c.counter}` : ''}</div>
-                  </div>
-                  <span class="selo selo-${c.categoria}">${ROTULO_CATEGORIA[c.categoria]}</span>
-                  <span class="carta-pct">${pct(c.inclusao)}</span>
-                </div>`).join('')}
-            </div>
-          </div>`).join('')}
+      <div class="acoes" style="margin-bottom:12px">
+        <button class="botao" id="btn-copiar-lista">copiar lista em texto</button>
+        <span class="stat-chip dinheiro"><b>${moeda(perfil.preco.total)}</b> para montar</span>
+        <span class="stat-chip"><b>${consenso.total}</b> cartas</span>
+        <span class="stat-chip">custo médio <b>${num(perfil.custoMedio, 2)}</b></span>
       </div>
-    </div>`;
+      ${gradeCartas(ordenada, { mostrarInclusao: true })}
+    </div>
+
+    ${painelEstatisticas(perfil)}`;
 }
 
-function graficoCurva(curva) {
-  const chaves = Object.keys(curva).map(Number).sort((a, b) => a - b);
-  if (!chaves.length) return '<div class="vazio">sem dados de custo</div>';
-  const min = Math.min(0, ...chaves), max = Math.max(...chaves);
-  const faixa = [];
-  for (let i = min; i <= max; i++) faixa.push(i);
-  const maior = Math.max(...Object.values(curva));
+/* -------------------- pecas compartilhadas: grade + painel -------------------- */
 
-  return `<div class="curva">
-    ${faixa.map((c) => {
-      const v = curva[c] || 0;
-      return `<div class="curva-col" title="custo ${c}: ${v} cartas">
-        <span class="curva-valor">${v || ''}</span>
-        <div class="curva-barra" style="height:${maior ? (v / maior) * 100 : 0}%"></div>
-        <span class="curva-rotulo">${c}</span>
+/**
+ * A lista desenhada como imagens de carta, com preço sobreposto e a
+ * quantidade embaixo — o mesmo formato que as decklists dos sites de meta usam.
+ */
+export function gradeCartas(cartas, { mostrarInclusao = false, miuda = false } = {}) {
+  if (!cartas.length) return '<div class="vazio">lista vazia</div>';
+
+  return `<div class="grade-cartas${miuda ? ' miuda' : ''}">
+    ${cartas.map((c) => {
+      const info = carta(c.id) || {};
+      const p = preco(c.id);
+      const caro = p && p.menor >= 5;
+      const titulo = [info.nome || c.id, c.id, info.custo !== null && info.custo !== undefined ? `custo ${info.custo}` : '', info.poder ? `${info.poder} de poder` : '']
+        .filter(Boolean).join(' · ');
+
+      return `<div class="carta-box" title="${esc(titulo)}">
+        <div class="carta-arte">
+          ${info.imagem ? `<img src="${esc(info.imagem)}" alt="${esc(info.nome || c.id)}" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}
+          ${p && p.menor !== null ? `<span class="carta-preco${caro ? ' caro' : ''}">${moeda(p.menor)}</span>` : ''}
+          ${mostrarInclusao && c.categoria ? `<span class="carta-faixa faixa-${c.categoria}" title="${ROTULO_CATEGORIA[c.categoria]}"></span>` : ''}
+        </div>
+        <div class="carta-rodape">
+          <span class="carta-vezes">${c.qtd}x</span>
+          ${mostrarInclusao && c.inclusao !== undefined ? `<span class="carta-inclusao">${pct(c.inclusao)}</span>` : ''}
+        </div>
+        <div class="carta-legenda">${esc(info.nome || c.id)}</div>
       </div>`;
     }).join('')}
   </div>`;
 }
+
+/** Counter, buscadores, curvas e traços — o painel que fecha a leitura da lista. */
+export function painelEstatisticas(perfil) {
+  const ct = perfil.counter;
+
+  return `
+    <div class="secao">
+      <h3>Counter</h3>
+      <div class="faixa-stats">
+        <span class="stat-chip destaque">média <b>${(ct.media / 1000).toFixed(2)}k</b> por carta</span>
+        <span class="stat-chip">2k <b>${ct.por2000}</b></span>
+        <span class="stat-chip">1k <b>${ct.por1000}</b></span>
+        <span class="stat-chip">Evento 4k <b>${ct.eventos4k}</b></span>
+        <span class="stat-chip">total <b>${(ct.soma / 1000).toFixed(0)}k</b></span>
+      </div>
+      <p class="legenda" style="margin:9px 0 0;font-size:12px">
+        A média divide o counter total pelas ${perfil.totalCartas} cartas do deck — é assim que se compara
+        a densidade de counter de duas listas. Eventos de counter contam como 4k.
+      </p>
+    </div>
+
+    ${perfil.buscadores.length ? `
+    <div class="secao">
+      <h3>Chance dos buscadores acharem algo</h3>
+      <div class="buscadores">
+        ${perfil.buscadores.map((b) => `
+          <div class="buscador" title="${esc(b.nome)} procura: ${esc(b.procura)}">
+            ${b.imagem ? `<img src="${esc(b.imagem)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}
+            <div class="buscador-info">
+              <div class="buscador-chance ${b.chance >= 90 ? 'alta' : b.chance >= 70 ? 'media' : 'baixa'}">${pct(b.chance)}</div>
+              <div class="buscador-linha">olha <b>${b.profundidade}</b> · acerta <b>${b.acertos}</b></div>
+              <div class="buscador-linha">${esc(b.nome)}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+      <p class="legenda" style="margin:10px 0 0;font-size:12px">
+        Chance de o efeito revelar pelo menos 1 carta que serve, olhando o topo do deck depois que
+        o buscador já foi jogado (sobram 49 cartas). Conta hipergeométrica, sem considerar o que já está na mão.
+      </p>
+    </div>` : ''}
+
+    <div class="secao duo-grafico">
+      <div class="cartao">
+        <h3 class="rotulo-bloco">Curva de custo</h3>
+        ${graficoBarras(perfil.curvaCusto, (k) => k)}
+        <div class="curva-eixo">custo</div>
+      </div>
+      <div class="cartao">
+        <h3 class="rotulo-bloco">Curva de poder</h3>
+        ${graficoBarras(perfil.curvaPoder, (k) => (k >= 10 ? '10k+' : `${k}k`))}
+        <div class="curva-eixo">poder</div>
+      </div>
+    </div>
+
+    <div class="secao duo-grafico">
+      <div class="cartao">
+        <h3 class="rotulo-bloco">Composição</h3>
+        ${listaSimples(Object.entries(perfil.tipos).map(([k, v]) => [traduzirTipo(k), v]))}
+      </div>
+      <div class="cartao">
+        <h3 class="rotulo-bloco">Traços</h3>
+        <div class="faixa-stats">
+          ${perfil.tracos.slice(0, 10).map(([t, n]) => `<span class="stat-chip">${esc(t)} <b>${n}</b></span>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+/** Gráfico de barras para as curvas. `rotular` decide o texto do eixo. */
+function graficoBarras(faixas, rotular = (k) => k) {
+  const chaves = Object.keys(faixas).map(Number).sort((a, b) => a - b);
+  if (!chaves.length) return '<div class="vazio">sem dados</div>';
+
+  const max = Math.max(...chaves);
+  const escala = [];
+  for (let i = 0; i <= max; i++) escala.push(i);
+  const maior = Math.max(...Object.values(faixas));
+
+  return `<div class="curva">
+    ${escala.map((c) => {
+      const v = faixas[c] || 0;
+      return `<div class="curva-col" title="${rotular(c)}: ${v} carta(s)">
+        <span class="curva-valor">${v || ''}</span>
+        <div class="curva-barra" style="height:${maior ? (v / maior) * 100 : 0}%"></div>
+        <span class="curva-rotulo">${rotular(c)}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+/** Mantido para a tela de comparação, que ainda usa o perfil antigo. */
+const graficoCurva = (curva) => graficoBarras(curva, (k) => k);
 
 function listaSimples(pares) {
   if (!pares.length) return '<div class="vazio">—</div>';
@@ -377,40 +459,29 @@ export function telaDecks(decks, sel) {
 }
 
 function detalheDeck(d) {
-  const perfil = perfilDeck(d.cartas);
+  const perfil = perfilCompleto(d.cartas);
   const cartas = d.cartas
     .map((c) => ({ ...c, ...(carta(c.id) || { nome: c.id, custo: null, tipo: '' }) }))
-    .sort((a, b) => (a.custo ?? 99) - (b.custo ?? 99) || a.nome.localeCompare(b.nome));
+    .sort((a, b) => (a.custo ?? 99) - (b.custo ?? 99) || b.qtd - a.qtd || a.nome.localeCompare(b.nome));
 
   const extras = [
-    `${d.totalCartas} cartas`,
-    `custo médio ${num(perfil.custoMedio, 2)}`,
-    `${perfil.counterCartas} com counter`,
-    d.evento ? esc(d.evento) : '',
+    d.evento || d.host ? esc(d.evento || d.host) : '',
     d.participantes ? `${d.participantes} jogadores` : '',
-    d.link ? `<a href="${esc(d.link)}" target="_blank" rel="noopener">ver a fonte original</a>` : '',
+    d.spice !== null && d.spice !== undefined ? `spice ${d.spice}` : '',
+    d.link ? `<a href="${esc(d.link)}" target="_blank" rel="noopener">ver a fonte original ↗</a>` : '',
   ].filter(Boolean).join(' · ');
 
-  return `<div class="grade grade-2" style="padding:10px 0">
-    <div class="cartao">
-      <div style="font-size:12px;color:var(--texto-3);margin-bottom:8px">${extras}</div>
-      ${graficoCurva(perfil.curva)}
-      <div style="height:14px"></div>
-      ${listaSimples(Object.entries(perfil.tipos).map(([k, v]) => [traduzirTipo(k), v]))}
+  return `<div style="padding:14px 0 6px">
+    <div class="acoes" style="margin-bottom:12px">
+      <span class="stat-chip dinheiro"><b>${moeda(perfil.preco.total)}</b> para montar</span>
+      <span class="stat-chip"><b>${d.totalCartas}</b> cartas</span>
+      <span class="stat-chip">custo médio <b>${num(perfil.custoMedio, 2)}</b></span>
+      <span class="stat-chip">counter <b>${(perfil.counter.media / 1000).toFixed(2)}k</b>/carta</span>
+      <button class="botao" data-copiar-deck="${esc(d.id)}">copiar lista</button>
     </div>
-    <div class="cartao">
-      <div class="lista-cartas">
-        ${cartas.map((c) => `
-          <div class="carta-linha">
-            <span class="carta-qtd">${c.qtd}x</span>
-            ${imgCarta(c.id)}
-            <div class="carta-info">
-              <div class="carta-nome">${esc(c.nome)}</div>
-              <div class="carta-meta">${esc(c.id)}${c.custo !== null ? ` · custo ${c.custo}` : ''}</div>
-            </div>
-          </div>`).join('')}
-      </div>
-    </div>
+    ${extras ? `<div style="font-size:12px;color:var(--texto-3);margin-bottom:12px">${extras}</div>` : ''}
+    ${gradeCartas(cartas)}
+    ${painelEstatisticas(perfil)}
   </div>`;
 }
 

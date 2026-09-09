@@ -25,18 +25,19 @@ node serve.js
 npm run atualizar
 ```
 
-Isso roda os quatro passos em sequência (uns 2 minutos no total):
+Isso roda os cinco passos em sequência (uns 3 minutos no total):
 
 | Comando | O que faz |
 |---|---|
 | `npm run atualizar-cartas` | Baixa nome, custo, poder, counter, cor e traços de todas as cartas, da lista oficial da Bandai |
 | `npm run atualizar-gumgum` | Lê as decklists do gumgum.gg |
 | `npm run atualizar-topdecks` | Lê as páginas de decklist do onepiecetopdecks.com |
+| `npm run atualizar-precos` | Baixa o preço de cada carta na TCGplayer (pelo espelho tcgcsv.com) |
 | `npm run juntar` | Junta as duas fontes de decklist no `data/decks.json`, que é o arquivo que o site lê |
 
-Os três primeiros salvam arquivos separados (`data/cartas.json`, `data/fonte-gumgum.json`,
-`data/fonte-topdecks.json`). Só o `juntar` produz o `data/decks.json`. Se um dos sites cair,
-os outros seguem atualizando e a junção reaproveita o último arquivo bom da fonte que falhou.
+Os quatro primeiros salvam arquivos separados (`data/cartas.json`, `data/precos.json`,
+`data/fonte-gumgum.json`, `data/fonte-topdecks.json`). Só o `juntar` produz o `data/decks.json`.
+Se um dos sites cair, os outros seguem atualizando e a junção reaproveita o último arquivo bom da fonte que falhou.
 
 ## Acompanhar mais sets
 
@@ -56,6 +57,7 @@ robô pega o que estiver lá.
 optcg-analyzer/
 ├── data/                       <- o "banco de dados"
 │   ├── cartas.json                todas as cartas com custo, poder, counter, traços…
+│   ├── precos.json                menor preço de cada carta na TCGplayer
 │   ├── fonte-gumgum.json          coleta crua do gumgum.gg
 │   ├── fonte-topdecks.json        coleta crua do onepiecetopdecks.com
 │   └── decks.json                 as duas fontes juntas e sem repetição  <- o site lê este
@@ -63,12 +65,14 @@ optcg-analyzer/
 │   ├── sources.json               páginas do onepiecetopdecks a acompanhar
 │   ├── coletar-cartas.mjs
 │   ├── coletar-gumgum.mjs
+│   ├── coletar-precos.mjs
 │   ├── coletar-decks.mjs
 │   ├── juntar-decks.mjs
 │   └── lib.mjs                    funções compartilhadas pelos robôs
 ├── js/                         <- o site
 │   ├── dados.js                   carrega os JSON e guarda os filtros
-│   ├── analise.js                 todas as contas (meta share, consenso, comparação)
+│   ├── analise.js                 contas do conjunto (meta share, consenso, comparação)
+│   ├── analise-deck.js            contas de uma lista (counter, curvas, buscadores, preço)
 │   ├── telas.js                   desenha cada aba
 │   └── app.js                     liga tudo
 ├── css/estilo.css
@@ -93,6 +97,10 @@ então não existe `npm install` nem pasta `node_modules`.
   colocação, torneio, autor, país e data. É a única das duas com o formato ocidental (EN).
 - **Cartas** — a lista oficial da Bandai. Ela bloqueia hotlink de imagem, então as artes exibidas
   no site vêm da CDN da dotgg; a URL oficial fica guardada no JSON como referência.
+- **Preços** — TCGplayer, pelo espelho público tcgcsv.com. Cada produto de carta traz um campo
+  `Number` com o código ("OP17-028"), que casa direto com o resto do projeto. Quando a carta tem
+  várias impressões guardamos a **mais barata**, que é o que interessa para saber quanto custa
+  montar o deck. Valores em dólar.
 
 ### Por que existe a etapa de juntar
 
@@ -127,7 +135,26 @@ maioria joga, e os slots flex são justamente onde as listas discordam.
 **Comparar** — diferença carta a carta entre dois decks, ou entre um deck e o consenso do
 líder dele. É o jeito rápido de ver onde uma lista se afasta do padrão.
 
-### Três coisas para não se enganar
+### O painel que acompanha cada lista
+
+Tanto o deck consenso quanto qualquer deck aberto na aba Decks vêm com a lista desenhada em
+cartas (com o preço de cada uma) e mais:
+
+**Counter** — quantas cartas de 1k e de 2k, quantos Events de counter (que valem 4k) e a média
+por carta. A média divide o counter total pelas 50 cartas, não só pelas que dão counter: é assim
+que dá para comparar a densidade de duas listas. Purple Enel, por exemplo, fica perto de 0.40k
+enquanto Green Mihawk fica em 0.72k.
+
+**Chance dos buscadores acharem algo** — cartas do tipo "olhe 3 do topo e revele 1 {Big Mom
+Pirates}". O site lê o texto do efeito, descobre o que a carta procura, conta quantas cartas da
+lista servem e calcula a chance pela distribuição hipergeométrica. A conta assume que o buscador
+já foi jogado, então sobram 49 cartas no deck — por isso o número sai um tiquinho diferente do
+gumgum, que usa 50. Buscador cujo critério é complicado demais para ler com segurança
+simplesmente não aparece, em vez de mostrar número errado.
+
+**Curva de custo**, **curva de poder**, **traços** e **preço para montar**.
+
+### Quatro coisas para não se enganar
 
 - Cerca de 11% das listas publicadas vêm incompletas (menos de 50 cartas). O filtro
   **"Só listas com 50 cartas"** já vem ligado por isso.
@@ -135,9 +162,12 @@ líder dele. É o jeito rápido de ver onde uma lista se afasta do padrão.
   **"Excluir simulador"** também já vem ligado.
 - A base tem bem mais decks japoneses que ocidentais, porque só uma das duas fontes cobre o
   formato EN. Se você joga no formato ocidental, use o filtro **Região = EN**.
+- O preço é o de mercado na TCGplayer, em dólar, da impressão mais barata. Serve para comparar
+  listas, não como orçamento de compra: no Brasil o valor real é outro.
 
 ---
 
 Decklists: [gumgum.gg](https://gumgum.gg/) e [onepiecetopdecks.com](https://onepiecetopdecks.com/).
 Dados de carta: [lista oficial da Bandai](https://en.onepiece-cardgame.com/cardlist/).
+Preços: [TCGplayer](https://www.tcgplayer.com/) via [tcgcsv.com](https://tcgcsv.com/).
 Projeto de fã, sem vínculo com a Bandai ou a Toei.

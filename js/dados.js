@@ -5,6 +5,8 @@ export const estado = {
   cartas: {},
   decks: [],
   infoDecks: null,
+  precos: {},
+  infoPrecos: null,
   infoCartas: null,
   filtros: {
     formato: '',
@@ -24,15 +26,19 @@ export const NOME_FONTE = {
 };
 
 export async function carregarDados() {
-  const [cartas, decks] = await Promise.all([
+  const [cartas, decks, precos] = await Promise.all([
     buscarJson('data/cartas.json'),
     buscarJson('data/decks.json'),
+    // O preço é opcional: se o arquivo não existir, o site funciona sem ele.
+    buscarJson('data/precos.json').catch(() => null),
   ]);
 
   estado.cartas = cartas.cartas;
   estado.infoCartas = { atualizado: cartas.atualizado, total: cartas.total };
   estado.decks = decks.decks;
   estado.infoDecks = { atualizado: decks.atualizado, total: decks.total, fontes: decks.fontes };
+  estado.precos = precos ? precos.precos : {};
+  estado.infoPrecos = precos ? { atualizado: precos.atualizado, moeda: precos.moeda, fonte: precos.fonte } : null;
 
   return estado;
 }
@@ -45,13 +51,39 @@ async function buscarJson(caminho) {
 
 export const carta = (id) => estado.cartas[id] || null;
 
+export const preco = (id) => estado.precos[id] || null;
+
 export const nomeCarta = (id) => {
   const c = estado.cartas[id];
   return c ? c.nome : id;
 };
 
-/** Lista de decks depois de aplicar a barra de filtros. */
+// Assinatura do estado dos filtros: se ela não mudou, o resultado é o mesmo.
+function assinaturaFiltros() {
+  const f = estado.filtros;
+  return [f.formato, f.regiao, f.fonte, f.periodo, f.completos, f.semSimulador, [...f.torneios].sort().join(',')].join('|');
+}
+
+let cacheAssinatura = null;
+let cacheDecks = null;
+
+/**
+ * Lista de decks depois de aplicar a barra de filtros.
+ * Devolve o MESMO array enquanto os filtros não mudarem — isso deixa as contas
+ * pesadas (meta share, estatística de carta) reaproveitarem o resultado em vez
+ * de refazer tudo a cada troca de aba ou letra digitada na busca.
+ */
 export function decksFiltrados() {
+  const assinatura = assinaturaFiltros();
+  if (assinatura === cacheAssinatura) return cacheDecks;
+
+  const lista = calcularFiltrados();
+  cacheAssinatura = assinatura;
+  cacheDecks = lista;
+  return lista;
+}
+
+function calcularFiltrados() {
   const f = estado.filtros;
   let limite = null;
   if (f.periodo > 0) {

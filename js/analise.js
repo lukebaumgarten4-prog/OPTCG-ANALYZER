@@ -5,10 +5,27 @@ import { carta } from './dados.js';
 
 const media = (nums) => (nums.length ? nums.reduce((s, n) => s + n, 0) / nums.length : null);
 
+/**
+ * Guarda o resultado por array de entrada. Como o decksFiltrados() devolve
+ * sempre o mesmo array enquanto os filtros não mudam, trocar de aba ou digitar
+ * na busca deixa de refazer as contas pesadas. WeakMap para não segurar
+ * memória depois que o array antigo é descartado.
+ */
+function lembrar(fn) {
+  const cache = new WeakMap();
+  return (decks, ...resto) => {
+    if (resto.length) return fn(decks, ...resto);
+    if (cache.has(decks)) return cache.get(decks);
+    const r = fn(decks);
+    cache.set(decks, r);
+    return r;
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * Meta share: quanto cada lider representa do total de decks que deram top
  * ------------------------------------------------------------------ */
-export function metaPorLider(decks) {
+function calcularMetaPorLider(decks) {
   const grupos = new Map();
 
   for (const d of decks) {
@@ -59,7 +76,7 @@ export function metaPorLider(decks) {
 /* ------------------------------------------------------------------ *
  * Estatistica de carta dentro de um conjunto de decks
  * ------------------------------------------------------------------ */
-export function estatCartas(decks) {
+function calcularEstatCartas(decks) {
   const n = decks.length;
   const acc = new Map();
 
@@ -272,3 +289,7 @@ export function evolucao(decks, lideres, semanas = 8) {
 
   return { periodos, series };
 }
+
+/* As duas contas mais pesadas do site ficam memorizadas por lista de decks. */
+export const metaPorLider = lembrar(calcularMetaPorLider);
+export const estatCartas = lembrar(calcularEstatCartas);

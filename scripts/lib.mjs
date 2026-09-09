@@ -1,7 +1,7 @@
 // Funcoes compartilhadas pelos robos de coleta.
 // Node 24 ja tem fetch embutido, entao este projeto nao precisa de nenhum pacote npm.
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+export const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
 export async function buscarHtml(url, { tentativas = 3 } = {}) {
   let ultimoErro;
