@@ -1,8 +1,13 @@
-// Le as paginas de decklist do onepiecetopdecks.com e salva data/decks.json
+// Le as paginas de decklist do onepiecetopdecks.com e salva data/fonte-topdecks.json
 // As paginas ficam em scripts/sources.json
+//
+// Este arquivo NAO e o que o site le. Depois de rodar este robo (e o do gumgum),
+// o juntar-decks.mjs combina as duas fontes e gera o data/decks.json final.
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { buscarHtml, limpar, esperar, log } from './lib.mjs';
+import { buscarHtml, limpar, esperar, log, normalizarTorneio } from './lib.mjs';
+
+const FONTE = 'onepiecetopdecks';
 
 const CONFIG = JSON.parse(readFileSync(new URL('./sources.json', import.meta.url), 'utf8'));
 
@@ -38,29 +43,6 @@ function lerData(txt) {
   const [, mes, dia, ano] = m;
   const iso = `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
   return { data: txt.trim(), iso: Number.isNaN(Date.parse(iso)) ? null : iso };
-}
-
-// Os nomes de torneio vem soltos no site ("FS", "2SB", "3v3 CS", "ExtraCS"...).
-// Agrupamos em categorias uteis - o principal e separar torneio de verdade
-// de partida jogada em simulador, que nao vale como resultado competitivo.
-function lerTorneio(txt) {
-  const k = txt.trim().toUpperCase();
-  if (!k) return 'Nao informado';
-  // "FS+EGB" -> ["FS","EGB"];  "2SB" -> ["SB"]
-  const codigos = k.split(/[^A-Z0-9]+/).filter(Boolean).map((t) => t.replace(/^\d+/, ''));
-  const tem = (...lista) => codigos.some((c) => lista.includes(c));
-
-  if (/SIM$|SIMULATOR|OPTCGSIM|PROXY/.test(k)) return 'Simulador';
-  if (tem('CS') || /CHAMPIONSHIP|WORLD|FINAL|LCQ|CS$/.test(k)) return 'Championship / Final';
-  if (/REGIONAL/.test(k)) return 'Regional';
-  if (tem('TC') || /TREASURE/.test(k)) return 'Treasure Cup';
-  if (tem('FS') || /FLAGSHIP|FLAME/.test(k)) return 'Flagship';
-  if (tem('SB') || /STANDARD/.test(k)) return 'Standard Battle';
-  if (tem('EGB', 'GAO') || /QUALIF|EXGRAND|AREA/.test(k)) return 'Qualificatoria';
-  if (/\d+V\d+|SIDE/.test(k)) return 'Equipe / Side Event';
-  if (/RELEASE|PIRATE|PARTY|GENCON|LIMITEDLEADER/.test(k)) return 'Evento casual';
-  if (/STORE|LOCAL|SHOP|LOJA/.test(k)) return 'Loja';
-  return 'Outro';
 }
 
 function celulas(linhaHtml) {
@@ -122,6 +104,7 @@ function processarPagina(html, fonte) {
     const torneioBruto = pega(tabela.idx.torneio);
 
     const deck = {
+      fonte: FONTE,
       formato: fonte.formato,
       regiao: fonte.regiao,
       lider: lider.id,
@@ -133,9 +116,12 @@ function processarPagina(html, fonte) {
       pais: pega(tabela.idx.pais),
       autor: pega(tabela.idx.autor),
       ...colocacao,
-      torneio: lerTorneio(torneioBruto),
+      torneio: normalizarTorneio(torneioBruto),
       torneioBruto,
       host: pega(tabela.idx.host),
+      evento: '',
+      participantes: null,
+      link: '',
       cartas: principal,
       totalCartas,
       completo: totalCartas === 50,
@@ -177,10 +163,11 @@ async function principal() {
 
   mkdirSync('data', { recursive: true });
   writeFileSync(
-    'data/decks.json',
-    JSON.stringify({ atualizado: new Date().toISOString(), total: decks.length, fontes: relatorio, decks }, null, 0)
+    'data/fonte-topdecks.json',
+    JSON.stringify({ fonte: FONTE, atualizado: new Date().toISOString(), total: decks.length, fontes: relatorio, decks }, null, 0)
   );
-  log(`PRONTO: ${decks.length} decks unicos salvos em data/decks.json (${todos.length - decks.length} duplicados removidos)`);
+  log(`PRONTO: ${decks.length} decks salvos em data/fonte-topdecks.json (${todos.length - decks.length} duplicados removidos)`);
+  log('Rode o juntar-decks.mjs para gerar o data/decks.json que o site le.');
 }
 
 principal().catch((err) => {

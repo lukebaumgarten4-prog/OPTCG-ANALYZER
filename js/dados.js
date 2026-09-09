@@ -9,11 +9,18 @@ export const estado = {
   filtros: {
     formato: '',
     regiao: '',
+    fonte: '',             // vazio = as duas fontes
     torneios: new Set(),   // vazio = todos
     periodo: 0,            // em dias; 0 = tudo
     completos: true,
     semSimulador: true,
   },
+};
+
+// Como cada fonte se chama na tela.
+export const NOME_FONTE = {
+  gumgum: 'gumgum.gg',
+  onepiecetopdecks: 'onepiecetopdecks',
 };
 
 export async function carregarDados() {
@@ -55,6 +62,7 @@ export function decksFiltrados() {
   return estado.decks.filter((d) => {
     if (f.formato && d.formato !== f.formato) return false;
     if (f.regiao && d.regiao !== f.regiao) return false;
+    if (f.fonte && !d.fontes.includes(f.fonte)) return false;
     if (f.completos && !d.completo) return false;
     if (f.semSimulador && d.torneio === 'Simulador') return false;
     if (f.torneios.size && !f.torneios.has(d.torneio)) return false;
@@ -66,9 +74,15 @@ export function decksFiltrados() {
 /** Valores distintos existentes na base, para montar os seletores. */
 export function opcoes() {
   const unicos = (fn) => [...new Set(estado.decks.map(fn).filter(Boolean))];
+  const fontes = [...new Set(estado.decks.flatMap((d) => d.fontes))].sort();
   return {
     formatos: unicos((d) => d.formato).sort().reverse(),
     regioes: unicos((d) => d.regiao).sort(),
+    fontes: fontes.map((valor) => ({
+      valor,
+      rotulo: NOME_FONTE[valor] || valor,
+      qtd: estado.decks.filter((d) => d.fontes.includes(valor)).length,
+    })),
     torneios: contarPor((d) => d.torneio),
   };
 }

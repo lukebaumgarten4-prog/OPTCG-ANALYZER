@@ -21,7 +21,7 @@ concurrency:
 jobs:
   coletar:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Baixar o repositório
@@ -35,11 +35,28 @@ jobs:
       - name: Coletar as cartas (site oficial da Bandai)
         run: node scripts/coletar-cartas.mjs
 
-      - name: Coletar as decklists (onepiecetopdecks.com)
+      # As três coletas abaixo usam continue-on-error de propósito: se um dos
+      # sites sair do ar ou mudar de formato, as outras fontes seguem atualizando
+      # e a junção reaproveita o último arquivo bom da fonte que falhou.
+      - name: Coletar decklists do gumgum.gg
+        id: gumgum
+        continue-on-error: true
+        run: node scripts/coletar-gumgum.mjs
+
+      - name: Coletar decklists do onepiecetopdecks.com
+        id: topdecks
+        continue-on-error: true
         run: node scripts/coletar-decks.mjs
 
-      # Os dois scripts acima falham com erro se vier pouca coisa, então se
-      # chegamos aqui os arquivos em data/ estão saudáveis.
+      - name: Avisar se as duas fontes falharam
+        if: steps.gumgum.outcome == 'failure' && steps.topdecks.outcome == 'failure'
+        run: |
+          echo "As duas fontes de decklist falharam. Nada de novo para salvar."
+          exit 1
+
+      - name: Juntar as fontes num só banco
+        run: node scripts/juntar-decks.mjs
+
       - name: Salvar o que mudou
         run: |
           git config user.name  "github-actions[bot]"
@@ -54,3 +71,10 @@ jobs:
             git push
             echo "Dados atualizados: ${decks} decks, ${cartas} cartas."
           fi
+
+      - name: Resumo
+        if: always()
+        run: |
+          echo "### Coleta do dia" >> $GITHUB_STEP_SUMMARY
+          echo "- gumgum.gg: ${{ steps.gumgum.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- onepiecetopdecks.com: ${{ steps.topdecks.outcome }}" >> $GITHUB_STEP_SUMMARY

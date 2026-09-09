@@ -60,3 +60,45 @@ export function paraNumero(txt) {
 export function log(...args) {
   console.log(`[${new Date().toISOString().slice(11, 19)}]`, ...args);
 }
+
+/* ------------------------------------------------------------------ *
+ * Normalizacao de tipo de torneio
+ *
+ * As duas fontes escrevem a mesma coisa de jeitos diferentes: o
+ * onepiecetopdecks usa codigos curtos ("FS", "2SB", "3v3 CS", "ExtraCS")
+ * e o gumgum escreve por extenso ("Flagship", "Extra Grand Battle",
+ * "CS Store Qualifier"). Esta funcao joga os dois no mesmo conjunto de
+ * categorias, senao seria impossivel filtrar as duas fontes juntas.
+ *
+ * A separacao mais importante e tirar partida de simulador do meio,
+ * porque ela nao vale como resultado competitivo.
+ * ------------------------------------------------------------------ */
+export function normalizarTorneio(txt) {
+  const k = String(txt || '').trim().toUpperCase();
+  if (!k) return 'Nao informado';
+
+  // "FS+EGB" -> ["FS","EGB"];  "2SB" -> ["SB"]
+  const codigos = k.split(/[^A-Z0-9]+/).filter(Boolean).map((t) => t.replace(/^\d+/, ''));
+  const tem = (...lista) => codigos.some((c) => lista.includes(c));
+
+  if (/SIM$|SIMULATOR|OPTCGSIM|PROXY/.test(k)) return 'Simulador';
+  if (tem('CS') || /CHAMPIONSHIP|WORLD|FINAL|LCQ|CS$/.test(k)) return 'Championship / Final';
+  if (/REGIONAL/.test(k)) return 'Regional';
+  if (tem('TC') || /TREASURE/.test(k)) return 'Treasure Cup';
+  if (tem('FS') || /FLAGSHIP|FLAME/.test(k)) return 'Flagship';
+  if (tem('SB') || /STANDARD/.test(k)) return 'Standard Battle';
+  if (tem('EGB', 'GAO', 'SQ') || /QUALIF|EXGRAND|EXTRA GRAND|AREA/.test(k)) return 'Qualificatoria';
+  if (/\d+\s*(?:V|ON)\s*\d+|SIDE/.test(k)) return 'Equipe / Side Event';
+  if (/RELEASE|PIRATE|PARTY|GENCON|LIMITEDLEADER|UNOFFICIAL|CASUAL/.test(k)) return 'Evento casual';
+  if (/STORE|LOCAL|SHOP|LOJA/.test(k)) return 'Loja';
+  return 'Outro';
+}
+
+/** Assinatura estavel de um deck, usada para achar a mesma lista nas duas fontes. */
+export function assinaturaDeck(lider, cartas) {
+  const corpo = [...cartas]
+    .map((c) => `${c.qtd}x${c.id}`)
+    .sort()
+    .join(',');
+  return `${lider}|${corpo}`;
+}

@@ -1,8 +1,8 @@
 # OPTCG Analyzer
 
-Site que lê as decklists que deram top no [onepiecetopdecks.com](https://onepiecetopdecks.com/deck-list/)
-e transforma isso em análise: meta share dos líderes, taxa de inclusão de cada carta,
-deck consenso e comparador de listas.
+Site que lê as decklists que deram top no [gumgum.gg](https://gumgum.gg/) e no
+[onepiecetopdecks.com](https://onepiecetopdecks.com/deck-list/) e transforma isso em análise:
+meta share dos líderes, taxa de inclusão de cada carta, deck consenso e comparador de listas.
 
 ---
 
@@ -25,18 +25,28 @@ node serve.js
 npm run atualizar
 ```
 
-Isso roda os dois robôs. Cada um leva cerca de um minuto:
+Isso roda os quatro passos em sequência (uns 2 minutos no total):
 
 | Comando | O que faz |
 |---|---|
 | `npm run atualizar-cartas` | Baixa nome, custo, poder, counter, cor e traços de todas as cartas, da lista oficial da Bandai |
-| `npm run atualizar-decks` | Lê as páginas de decklist do onepiecetopdecks.com e monta o `data/decks.json` |
+| `npm run atualizar-gumgum` | Lê as decklists do gumgum.gg |
+| `npm run atualizar-topdecks` | Lê as páginas de decklist do onepiecetopdecks.com |
+| `npm run juntar` | Junta as duas fontes de decklist no `data/decks.json`, que é o arquivo que o site lê |
+
+Os três primeiros salvam arquivos separados (`data/cartas.json`, `data/fonte-gumgum.json`,
+`data/fonte-topdecks.json`). Só o `juntar` produz o `data/decks.json`. Se um dos sites cair,
+os outros seguem atualizando e a junção reaproveita o último arquivo bom da fonte que falhou.
 
 ## Acompanhar mais sets
 
-Abra **`scripts/sources.json`**, copie um dos blocos e troque a URL, o formato e o rótulo.
-As URLs saem da [página de decklists](https://onepiecetopdecks.com/deck-list/). Depois rode
-`npm run atualizar-decks`. Nada mais precisa ser mexido — o site se adapta sozinho.
+Isso vale só para o onepiecetopdecks: abra **`scripts/sources.json`**, copie um dos blocos e
+troque a URL, o formato e o rótulo. As URLs saem da
+[página de decklists](https://onepiecetopdecks.com/deck-list/). Depois rode
+`npm run atualizar-topdecks && npm run juntar`.
+
+O gumgum.gg não precisa de configuração: ele publica os formatos atuais na página inicial e o
+robô pega o que estiver lá.
 
 ---
 
@@ -44,23 +54,27 @@ As URLs saem da [página de decklists](https://onepiecetopdecks.com/deck-list/).
 
 ```
 optcg-analyzer/
-├── data/                 <- o "banco de dados": dois arquivos JSON
-│   ├── cartas.json          todas as cartas com custo, poder, counter, traços…
-│   └── decks.json           todas as decklists coletadas, já normalizadas
-├── scripts/              <- os robôs que enchem o data/
-│   ├── sources.json         quais páginas acompanhar (o único arquivo de config)
+├── data/                       <- o "banco de dados"
+│   ├── cartas.json                todas as cartas com custo, poder, counter, traços…
+│   ├── fonte-gumgum.json          coleta crua do gumgum.gg
+│   ├── fonte-topdecks.json        coleta crua do onepiecetopdecks.com
+│   └── decks.json                 as duas fontes juntas e sem repetição  <- o site lê este
+├── scripts/                    <- os robôs
+│   ├── sources.json               páginas do onepiecetopdecks a acompanhar
 │   ├── coletar-cartas.mjs
+│   ├── coletar-gumgum.mjs
 │   ├── coletar-decks.mjs
-│   └── lib.mjs
-├── js/                   <- o site
-│   ├── dados.js             carrega os JSON e guarda os filtros
-│   ├── analise.js           todas as contas (meta share, consenso, comparação)
-│   ├── telas.js             desenha cada aba
-│   └── app.js               liga tudo
+│   ├── juntar-decks.mjs
+│   └── lib.mjs                    funções compartilhadas pelos robôs
+├── js/                         <- o site
+│   ├── dados.js                   carrega os JSON e guarda os filtros
+│   ├── analise.js                 todas as contas (meta share, consenso, comparação)
+│   ├── telas.js                   desenha cada aba
+│   └── app.js                     liga tudo
 ├── css/estilo.css
 ├── index.html
-├── serve.js              <- servidor local
-└── .github/workflows/    <- a automação que atualiza os dados sozinha
+├── serve.js                    <- servidor local
+└── .github/workflows/          <- a automação que atualiza os dados sozinha
 ```
 
 O projeto **não usa nenhum pacote npm**. É só Node puro e JavaScript de navegador,
@@ -68,11 +82,30 @@ então não existe `npm install` nem pasta `node_modules`.
 
 ### De onde vem cada dado
 
-- **Decklists**: as páginas do onepiecetopdecks.com trazem uma tabela onde cada deck vem
-  codificado como `1nOP14-020a4nOP07-022a...` — quantidade + código da carta. O robô
-  decodifica isso e junta com colocação, torneio, autor, país e data.
-- **Cartas**: a lista oficial da Bandai. Ela bloqueia hotlink de imagem, então as artes
-  exibidas no site vêm da CDN da dotgg; a URL oficial fica guardada no JSON como referência.
+- **gumgum.gg** — o site é feito em Next.js e entrega a página já com os dados dentro do HTML,
+  em pedaços `self.__next_f.push(...)`. Juntando esses pedaços aparece o JSON das listas. É a
+  fonte mais rica: traz data em formato ISO, colocação como número, quantidade de participantes,
+  link para a publicação original e um índice de *spice* (o quanto a lista foge do consenso).
+  A API deles (`/api/decklists`) existe mas responde 403 até para o próprio site, então lemos o
+  que a página pública já entrega. Hoje eles só publicam o formato japonês.
+- **onepiecetopdecks.com** — as páginas trazem uma tabela onde cada deck vem codificado como
+  `1nOP14-020a4nOP07-022a...` (quantidade + código da carta). O robô decodifica isso e junta com
+  colocação, torneio, autor, país e data. É a única das duas com o formato ocidental (EN).
+- **Cartas** — a lista oficial da Bandai. Ela bloqueia hotlink de imagem, então as artes exibidas
+  no site vêm da CDN da dotgg; a URL oficial fica guardada no JSON como referência.
+
+### Por que existe a etapa de juntar
+
+As duas fontes cobrem o mesmo período do formato japonês, então a mesma lista costuma aparecer
+nas duas. Se a gente só empilhasse os arquivos, cada resultado repetido contaria em dobro e o
+meta share ficaria mentiroso.
+
+A junção considera a mesma lista quando batem **líder + data + as 50 cartas exatas**. Quando as
+duas fontes trazem autores diferentes para essa combinação, os dois registros são mantidos —
+são duas pessoas que levaram a mesma lista no mesmo dia, coisa comum em meta consolidado.
+Na coleta atual, cerca de 180 listas aparecem nas duas fontes.
+
+O filtro **Fonte**, lá em cima no site, deixa você isolar uma fonte só se quiser conferir.
 
 ---
 
@@ -94,15 +127,17 @@ maioria joga, e os slots flex são justamente onde as listas discordam.
 **Comparar** — diferença carta a carta entre dois decks, ou entre um deck e o consenso do
 líder dele. É o jeito rápido de ver onde uma lista se afasta do padrão.
 
-### Duas coisas para não se enganar
+### Três coisas para não se enganar
 
-- Cerca de 13% das listas publicadas vêm incompletas (menos de 50 cartas). O filtro
-  **"Só decks com 50 cartas"** já vem ligado por isso.
-- Partidas de simulador aparecem misturadas com torneio de verdade na fonte. O filtro
+- Cerca de 11% das listas publicadas vêm incompletas (menos de 50 cartas). O filtro
+  **"Só listas com 50 cartas"** já vem ligado por isso.
+- Partidas de simulador aparecem misturadas com torneio de verdade no onepiecetopdecks. O filtro
   **"Excluir simulador"** também já vem ligado.
+- A base tem bem mais decks japoneses que ocidentais, porque só uma das duas fontes cobre o
+  formato EN. Se você joga no formato ocidental, use o filtro **Região = EN**.
 
 ---
 
-Dados de decklist: [onepiecetopdecks.com](https://onepiecetopdecks.com/).
+Decklists: [gumgum.gg](https://gumgum.gg/) e [onepiecetopdecks.com](https://onepiecetopdecks.com/).
 Dados de carta: [lista oficial da Bandai](https://en.onepiece-cardgame.com/cardlist/).
 Projeto de fã, sem vínculo com a Bandai ou a Toei.

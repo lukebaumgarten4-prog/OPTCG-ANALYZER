@@ -47,10 +47,17 @@ async function iniciar() {
 }
 
 function montarStatus() {
-  const d = new Date(estado.infoDecks.atualizado);
+  const quando = new Date(estado.infoDecks.atualizado);
+  const dias = (Date.now() - quando.getTime()) / 86400000;
+  // Bolinha verde = dado fresco; amarela = a coleta não roda há mais de 3 dias.
+  const estadoBolinha = dias > 3 ? 'frio' : '';
+
   $('#status').innerHTML = `
-    <div><b>${estado.infoDecks.total}</b> decks · <b>${estado.infoCartas.total}</b> cartas no banco</div>
-    <div>dados atualizados em ${d.toLocaleString('pt-BR')}</div>`;
+    <span class="pulso ${estadoBolinha}"></span>
+    <span><b>${estado.infoDecks.total.toLocaleString('pt-BR')}</b> decks ·
+    <b>${estado.infoCartas.total.toLocaleString('pt-BR')}</b> cartas ·
+    coletado ${quando.toLocaleDateString('pt-BR')}</span>`;
+  $('#status').title = `Decklists coletadas em ${quando.toLocaleString('pt-BR')}`;
 }
 
 /* -------------------- filtros -------------------- */
@@ -64,8 +71,11 @@ function montarFiltros() {
   encher($('#f-formato'), o.formatos);
   encher($('#f-regiao'), o.regioes);
 
+  $('#f-fonte').innerHTML = '<option value="">Ambas</option>'
+    + o.fontes.map((f) => `<option value="${esc(f.valor)}">${esc(f.rotulo)} (${f.qtd})</option>`).join('');
+
   $('#f-torneios').innerHTML = o.torneios
-    .map((t) => `<button class="chip" data-torneio="${esc(t.valor)}">${esc(t.valor)} <span style="opacity:.6">${t.qtd}</span></button>`)
+    .map((t) => `<button class="chip" data-torneio="${esc(t.valor)}">${esc(t.valor)}<span class="qtd">${t.qtd}</span></button>`)
     .join('');
 }
 
@@ -73,13 +83,14 @@ function lerFiltros() {
   const f = estado.filtros;
   f.formato = $('#f-formato').value;
   f.regiao = $('#f-regiao').value;
+  f.fonte = $('#f-fonte').value;
   f.periodo = Number($('#f-periodo').value);
   f.completos = $('#f-completos').checked;
   f.semSimulador = $('#f-semsim').checked;
 }
 
 function ligarEventos() {
-  for (const id of ['#f-formato', '#f-regiao', '#f-periodo', '#f-completos', '#f-semsim']) {
+  for (const id of ['#f-formato', '#f-regiao', '#f-fonte', '#f-periodo', '#f-completos', '#f-semsim']) {
     $(id).addEventListener('change', () => { lerFiltros(); sel.deckAberto = null; renderizar(); });
   }
 
@@ -97,6 +108,7 @@ function ligarEventos() {
   $('#btn-limpar').addEventListener('click', () => {
     $('#f-formato').value = '';
     $('#f-regiao').value = '';
+    $('#f-fonte').value = '';
     $('#f-periodo').value = '0';
     $('#f-completos').checked = true;
     $('#f-semsim').checked = true;
@@ -144,7 +156,7 @@ function ligarEventos() {
 function renderizar() {
   const decks = decksFiltrados();
 
-  $('#resumo-filtro').textContent = `${decks.length} de ${estado.decks.length} decks`;
+  $('#resumo-filtro').innerHTML = `<b>${decks.length.toLocaleString('pt-BR')}</b> de ${estado.decks.length.toLocaleString('pt-BR')} decks`;
 
   const telas = {
     meta: () => telaMeta(decks),

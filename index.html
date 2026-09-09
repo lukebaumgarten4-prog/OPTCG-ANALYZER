@@ -8,59 +8,66 @@
 </head>
 <body>
 
-<header class="topo">
-  <div class="topo-marca">
-    <h1>OPTCG <span>Analyzer</span></h1>
-    <p class="topo-sub">Análise dos decks que deram top, direto do onepiecetopdecks.com</p>
-  </div>
-  <div class="topo-status" id="status">
-    <span class="carregando">carregando dados…</span>
-  </div>
+<!-- Barra fixa: marca + abas + frescor dos dados, tudo numa linha só
+     para não roubar altura da tela. -->
+<header class="barra-topo">
+  <a class="marca" href="./">OPTCG <span>Analyzer</span></a>
+
+  <nav class="abas" id="abas">
+    <button class="aba ativa" data-tela="meta">Meta</button>
+    <button class="aba" data-tela="cartas">Cartas</button>
+    <button class="aba" data-tela="consenso">Consenso</button>
+    <button class="aba" data-tela="decks">Decks</button>
+    <button class="aba" data-tela="comparar">Comparar</button>
+  </nav>
+
+  <div class="frescor" id="status"><span class="pulso"></span> carregando…</div>
 </header>
 
-<nav class="abas" id="abas">
-  <button class="aba ativa" data-tela="meta">Meta</button>
-  <button class="aba" data-tela="cartas">Cartas</button>
-  <button class="aba" data-tela="consenso">Deck consenso</button>
-  <button class="aba" data-tela="decks">Decks</button>
-  <button class="aba" data-tela="comparar">Comparar</button>
-</nav>
-
 <section class="filtros" id="filtros">
-  <div class="filtro">
-    <label for="f-formato">Formato</label>
-    <select id="f-formato"><option value="">Todos</option></select>
+  <div class="filtros-linha">
+    <div class="campo">
+      <label for="f-formato">Formato</label>
+      <select id="f-formato"><option value="">Todos</option></select>
+    </div>
+    <div class="campo">
+      <label for="f-regiao">Região</label>
+      <select id="f-regiao"><option value="">Todas</option></select>
+    </div>
+    <div class="campo">
+      <label for="f-fonte">Fonte</label>
+      <select id="f-fonte"><option value="">Ambas</option></select>
+    </div>
+    <div class="campo">
+      <label for="f-periodo">Período</label>
+      <select id="f-periodo">
+        <option value="0">Tudo</option>
+        <option value="14">Últimos 14 dias</option>
+        <option value="30">Últimos 30 dias</option>
+        <option value="60">Últimos 60 dias</option>
+        <option value="90">Últimos 90 dias</option>
+      </select>
+    </div>
+
+    <div class="campo campo-caixas">
+      <label class="caixa"><input type="checkbox" id="f-completos" checked><span>Só listas com 50 cartas</span></label>
+      <label class="caixa"><input type="checkbox" id="f-semsim" checked><span>Excluir simulador</span></label>
+    </div>
+
+    <div class="filtros-resumo">
+      <span class="contagem" id="resumo-filtro">—</span>
+      <button class="link-botao" id="btn-limpar">limpar</button>
+    </div>
   </div>
-  <div class="filtro">
-    <label for="f-regiao">Região</label>
-    <select id="f-regiao"><option value="">Todas</option></select>
-  </div>
-  <div class="filtro filtro-largo">
-    <label>Tipo de torneio</label>
+
+  <div class="filtros-linha filtros-chips">
+    <span class="chips-rotulo">Torneio</span>
     <div class="chips" id="f-torneios"></div>
-  </div>
-  <div class="filtro">
-    <label for="f-periodo">Período</label>
-    <select id="f-periodo">
-      <option value="0">Tudo</option>
-      <option value="14">Últimos 14 dias</option>
-      <option value="30">Últimos 30 dias</option>
-      <option value="60">Últimos 60 dias</option>
-      <option value="90">Últimos 90 dias</option>
-    </select>
-  </div>
-  <div class="filtro filtro-caixas">
-    <label class="caixa"><input type="checkbox" id="f-completos" checked> Só decks com 50 cartas</label>
-    <label class="caixa"><input type="checkbox" id="f-semsim" checked> Excluir simulador</label>
-  </div>
-  <div class="filtro filtro-resumo">
-    <span id="resumo-filtro">—</span>
-    <button class="btn-limpar" id="btn-limpar">limpar filtros</button>
   </div>
 </section>
 
 <main id="conteudo">
-  <div class="aviso" id="aviso-carregando">
+  <div class="aviso">
     <div class="spinner"></div>
     <p>Lendo o banco de dados…</p>
   </div>
@@ -68,7 +75,8 @@
 
 <footer class="rodape">
   <p>
-    Dados de decklist: <a href="https://onepiecetopdecks.com/deck-list/" target="_blank" rel="noopener">onepiecetopdecks.com</a> ·
+    Decklists: <a href="https://gumgum.gg/" target="_blank" rel="noopener">gumgum.gg</a> e
+    <a href="https://onepiecetopdecks.com/deck-list/" target="_blank" rel="noopener">onepiecetopdecks.com</a> ·
     Dados de carta: <a href="https://en.onepiece-cardgame.com/cardlist/" target="_blank" rel="noopener">lista oficial Bandai</a>.
     Projeto de fã, sem vínculo com a Bandai ou a Toei.
   </p>

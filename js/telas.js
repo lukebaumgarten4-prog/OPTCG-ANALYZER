@@ -1,6 +1,6 @@
 // Desenho das telas. Cada funcao recebe os decks ja filtrados e devolve HTML.
 
-import { carta } from './dados.js';
+import { carta, NOME_FONTE } from './dados.js';
 import {
   metaPorLider, estatCartas, deckConsenso, perfilDeck,
   compararDecks, evolucao, ROTULO_CATEGORIA,
@@ -14,9 +14,11 @@ export const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => (
 
 const num = (v, casas = 1) => (v === null || v === undefined || Number.isNaN(v) ? '—' : v.toFixed(casas));
 const pct = (v) => `${num(v, 1)}%`;
+// 2234 -> "2.234", para os números grandes não virarem uma paredinha de dígitos
+const inteiro = (v) => (typeof v === 'number' ? v.toLocaleString('pt-BR') : v);
 
 const CORES = { Red: '--cor-red', Green: '--cor-green', Blue: '--cor-blue', Purple: '--cor-purple', Black: '--cor-black', Yellow: '--cor-yellow' };
-export const corCss = (cor) => `var(${CORES[(cor || '').split('/')[0].trim()] || '--texto-fraco'})`;
+export const corCss = (cor) => `var(${CORES[(cor || '').split('/')[0].trim()] || '--texto-3'})`;
 
 export function pilulaCor(cor) {
   if (!cor) return '';
@@ -41,7 +43,7 @@ function celulaLider(id) {
 
 const barra = (valor, max, cor) => `<div class="barra-trilha"><div class="barra" style="width:${max ? Math.max(2, (valor / max) * 100) : 0}%;background:${cor || 'var(--destaque)'}"></div></div>`;
 
-const kpi = (valor, rotulo) => `<div class="cartao"><div class="kpi-valor">${valor}</div><div class="kpi-rotulo">${esc(rotulo)}</div></div>`;
+const kpi = (valor, rotulo) => `<div class="cartao"><div class="kpi-valor">${inteiro(valor)}</div><div class="kpi-rotulo">${esc(rotulo)}</div></div>`;
 
 const vazio = (msg) => `<div class="cartao vazio">${esc(msg)}</div>`;
 
@@ -55,20 +57,33 @@ export function telaMeta(decks) {
   const linhas = metaPorLider(decks);
   const maxQtd = linhas[0].qtd;
   const datas = decks.map((d) => d.dataIso).filter(Boolean).sort();
-  const hosts = new Set(decks.map((d) => d.host).filter(Boolean));
+  const eventos = new Set(decks.map((d) => d.host || d.evento).filter(Boolean));
 
   const evo = evolucao(decks, linhas.slice(0, 6).map((l) => l.lider));
 
   return `
     <h2 class="titulo">Meta share dos líderes</h2>
-    <p class="legenda">Quanto cada líder representa dentro dos ${decks.length} decks que bateram os filtros.
+    <p class="legenda">Quanto cada líder representa dentro dos ${inteiro(decks.length)} decks que bateram os filtros.
     "Top 4" conta as vezes que o líder terminou em 1º a 4º lugar. O winrate só aparece quando há pelo menos
     20 partidas com placar informado — muita decklist vem sem o placar.</p>
 
-    <div class="grade grade-4">
+    <div class="podio">
+      ${linhas.slice(0, 4).map((l, i) => `
+        <div class="podio-item" style="--cor:${corCss(l.cor)}">
+          ${l.imagem ? `<img class="podio-arte" src="${esc(l.imagem)}" alt="" onerror="this.style.visibility='hidden'">` : ''}
+          <div class="podio-info">
+            <div class="podio-pos">${i + 1}º MAIS JOGADO</div>
+            <div class="podio-nome" title="${esc(l.nome)}">${esc(l.nome)}</div>
+            <div class="podio-share">${pct(l.pct)}</div>
+            <div class="podio-sub">${l.qtd} decks · ${l.top4} vez(es) no top 4</div>
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <div class="secao grade grade-4">
       ${kpi(decks.length, 'decks analisados')}
       ${kpi(linhas.length, 'líderes diferentes')}
-      ${kpi(hosts.size, 'organizadores')}
+      ${kpi(eventos.size, 'eventos distintos')}
       ${kpi(datas.length ? `${formatarData(datas[0])} → ${formatarData(datas[datas.length - 1])}` : '—', 'período coberto')}
     </div>
 
@@ -124,7 +139,7 @@ function graficoLinhas(evo) {
   const grade = [0, 0.25, 0.5, 0.75, 1].map((f) => {
     const v = maxY * f;
     return `<line x1="${L}" y1="${y(v)}" x2="${L + areaL}" y2="${y(v)}" stroke="var(--borda)" stroke-width="1"/>
-            <text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" fill="var(--texto-fraco)" font-size="11">${v.toFixed(0)}%</text>`;
+            <text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" fill="var(--texto-3)" font-size="11">${v.toFixed(0)}%</text>`;
   }).join('');
 
   const linhas = evo.series.map((s) => {
@@ -133,17 +148,17 @@ function graficoLinhas(evo) {
     return `<path d="${d}" fill="none" stroke="${corCss(s.cor)}" stroke-width="2.2" stroke-linejoin="round"/>${pontos}`;
   }).join('');
 
-  const eixoX = evo.periodos.map((p, i) => `<text x="${x(i).toFixed(1)}" y="${alt - 14}" text-anchor="middle" fill="var(--texto-fraco)" font-size="11">${p.rotulo}</text>`).join('');
+  const eixoX = evo.periodos.map((p, i) => `<text x="${x(i).toFixed(1)}" y="${alt - 14}" text-anchor="middle" fill="var(--texto-3)" font-size="11">${p.rotulo}</text>`).join('');
 
   const legenda = evo.series.map((s) => `
-    <span style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:12px">
-      <span style="width:11px;height:3px;border-radius:2px;background:${corCss(s.cor)}"></span>${esc(s.nome)}
+    <span class="legenda-item">
+      <span class="legenda-cor" style="background:${corCss(s.cor)}"></span>${esc(s.nome)}
     </span>`).join('');
 
   return `<svg viewBox="0 0 ${larg} ${alt}" style="width:100%;height:auto" role="img" aria-label="Evolução do meta share por semana">
       ${grade}${linhas}${eixoX}
     </svg>
-    <div style="margin-top:10px">${legenda}</div>`;
+    <div class="legenda-grafico">${legenda}</div>`;
 }
 
 /* -------------------- TELA: CARTAS -------------------- */
@@ -237,14 +252,14 @@ export function telaConsenso(decks, sel) {
 
     <div class="secao grade grade-2">
       <div class="cartao">
-        <h3 style="margin:0 0 4px;font-size:13px;color:var(--texto-fraco);text-transform:uppercase;letter-spacing:.6px">Curva de custo</h3>
+        <h3 class="rotulo-bloco">Curva de custo</h3>
         ${graficoCurva(perfil.curva)}
       </div>
       <div class="cartao">
-        <h3 style="margin:0 0 10px;font-size:13px;color:var(--texto-fraco);text-transform:uppercase;letter-spacing:.6px">Composição</h3>
+        <h3 class="rotulo-bloco">Composição</h3>
         ${listaSimples(Object.entries(perfil.tipos).map(([k, v]) => [traduzirTipo(k), v]))}
         <div style="height:12px"></div>
-        <h3 style="margin:0 0 10px;font-size:13px;color:var(--texto-fraco);text-transform:uppercase;letter-spacing:.6px">Traços mais presentes</h3>
+        <h3 class="rotulo-bloco">Traços mais presentes</h3>
         ${listaSimples(perfil.tracos.slice(0, 6))}
       </div>
     </div>
@@ -255,7 +270,7 @@ export function telaConsenso(decks, sel) {
       <div class="grade grade-2">
         ${Object.keys(grupos).sort((a, b) => (a === '—' ? 99 : +a) - (b === '—' ? 99 : +b)).map((custo) => `
           <div class="cartao">
-            <div style="font-size:12px;color:var(--texto-fraco);margin-bottom:8px">
+            <div style="font-size:12px;color:var(--texto-3);margin-bottom:8px">
               Custo ${custo} — ${grupos[custo].reduce((s, c) => s + c.qtd, 0)} cartas
             </div>
             <div class="lista-cartas">
@@ -328,30 +343,33 @@ export function telaDecks(decks, sel) {
       <input type="search" id="busca-deck" placeholder="autor, arquétipo, loja ou país" value="${esc(sel.buscaDeck || '')}"></div>
     </div>
 
-    <p class="legenda">${lista.length} deck(s) encontrados${lista.length > mostrando.length ? ` — mostrando os ${mostrando.length} primeiros` : ''}.</p>
+    <p class="legenda">${inteiro(lista.length)} deck(s) encontrados${lista.length > mostrando.length ? ` — mostrando os ${mostrando.length} primeiros` : ''}.</p>
 
     <div class="tabela-caixa">
       <table>
         <thead><tr>
           <th>Data</th><th>Líder</th><th>Arquétipo</th><th>Autor</th>
-          <th>Colocação</th><th>Torneio</th><th>Organizador</th><th>País</th><th>Formato</th>
+          <th>Colocação</th><th class="num">Jogadores</th><th>Torneio</th>
+          <th>País</th><th>Formato</th><th class="num">Spice</th><th>Fonte</th>
         </tr></thead>
         <tbody>
           ${mostrando.map((d) => `
-            <tr class="linha-deck" data-deck="${esc(d.id)}" style="cursor:pointer">
+            <tr class="linha-deck ${sel.deckAberto === d.id ? 'aberta' : ''}" data-deck="${esc(d.id)}">
               <td>${esc(d.data)}</td>
               <td>${celulaLider(d.lider)}</td>
               <td>${esc(d.arquetipo)}</td>
               <td>${esc(d.autor || '—')}</td>
-              <td>${esc(d.colocacao || '—')}</td>
-              <td>${esc(d.torneio)}</td>
-              <td>${esc(d.host || '—')}</td>
+              <td class="forte">${esc(d.colocacao || '—')}</td>
+              <td class="num">${d.participantes ?? '—'}</td>
+              <td>${esc(d.torneio)}${d.torneioBruto && d.torneioBruto !== d.torneio ? ` <span class="lider-cod">${esc(d.torneioBruto)}</span>` : ''}</td>
               <td>${esc(d.pais || '—')}</td>
               <td>${esc(d.regiao)} ${esc(d.formato)}</td>
+              <td class="num" title="${d.spice !== null && d.spice !== undefined ? 'quanto a lista foge do consenso' : ''}">${d.spice ?? '—'}</td>
+              <td>${d.fontes.map((f) => `<span class="marca-fonte">${esc(NOME_FONTE[f] || f)}</span>`).join(' ')}</td>
             </tr>
-            ${sel.deckAberto === d.id ? `<tr><td colspan="9">${detalheDeck(d)}</td></tr>` : ''}
+            ${sel.deckAberto === d.id ? `<tr class="linha-detalhe"><td colspan="11">${detalheDeck(d)}</td></tr>` : ''}
           `).join('')}
-          ${mostrando.length ? '' : '<tr><td colspan="9" class="vazio">Nada encontrado.</td></tr>'}
+          ${mostrando.length ? '' : '<tr><td colspan="11" class="vazio">Nada encontrado.</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -364,11 +382,18 @@ function detalheDeck(d) {
     .map((c) => ({ ...c, ...(carta(c.id) || { nome: c.id, custo: null, tipo: '' }) }))
     .sort((a, b) => (a.custo ?? 99) - (b.custo ?? 99) || a.nome.localeCompare(b.nome));
 
+  const extras = [
+    `${d.totalCartas} cartas`,
+    `custo médio ${num(perfil.custoMedio, 2)}`,
+    `${perfil.counterCartas} com counter`,
+    d.evento ? esc(d.evento) : '',
+    d.participantes ? `${d.participantes} jogadores` : '',
+    d.link ? `<a href="${esc(d.link)}" target="_blank" rel="noopener">ver a fonte original</a>` : '',
+  ].filter(Boolean).join(' · ');
+
   return `<div class="grade grade-2" style="padding:10px 0">
     <div class="cartao">
-      <div style="font-size:12px;color:var(--texto-fraco);margin-bottom:8px">
-        ${d.totalCartas} cartas · custo médio ${num(perfil.custoMedio, 2)} · ${perfil.counterCartas} com counter
-      </div>
+      <div style="font-size:12px;color:var(--texto-3);margin-bottom:8px">${extras}</div>
       ${graficoCurva(perfil.curva)}
       <div style="height:14px"></div>
       ${listaSimples(Object.entries(perfil.tipos).map(([k, v]) => [traduzirTipo(k), v]))}
@@ -433,8 +458,8 @@ export function telaComparar(decks, sel) {
       </div>
 
       <div class="secao grade grade-2">
-        <div class="cartao"><div style="font-size:12px;color:var(--texto-fraco);margin-bottom:6px">Curva — ${esc(a.rotulo)}</div>${graficoCurva(pa.curva)}</div>
-        <div class="cartao"><div style="font-size:12px;color:var(--texto-fraco);margin-bottom:6px">Curva — ${esc(b.rotulo)}</div>${graficoCurva(pb.curva)}</div>
+        <div class="cartao"><div style="font-size:12px;color:var(--texto-3);margin-bottom:6px">Curva — ${esc(a.rotulo)}</div>${graficoCurva(pa.curva)}</div>
+        <div class="cartao"><div style="font-size:12px;color:var(--texto-3);margin-bottom:6px">Curva — ${esc(b.rotulo)}</div>${graficoCurva(pb.curva)}</div>
       </div>
 
       <div class="secao grade grade-2">
@@ -469,7 +494,7 @@ export function telaComparar(decks, sel) {
 
 function blocoDif(titulo, linhas, campo, selo) {
   return `<div class="cartao">
-    <div style="font-size:12px;color:var(--texto-fraco);margin-bottom:8px">${titulo} — ${linhas.reduce((s, l) => s + l[campo], 0)} cartas</div>
+    <div style="font-size:12px;color:var(--texto-3);margin-bottom:8px">${titulo} — ${linhas.reduce((s, l) => s + l[campo], 0)} cartas</div>
     ${linhas.length ? `<div class="lista-cartas">${linhas.map((l) => `
       <div class="carta-linha">
         <span class="carta-qtd">${l[campo]}x</span>
