@@ -1,6 +1,6 @@
 // Desenho das telas. Cada funcao recebe os decks ja filtrados e devolve HTML.
 
-import { carta, preco, NOME_FONTE } from './dados.js';
+import { carta, preco, estado, NOME_FONTE } from './dados.js';
 import {
   metaPorLider, estatCartas, deckConsenso, perfilDeck,
   compararDecks, evolucao, ROTULO_CATEGORIA,
@@ -64,11 +64,29 @@ export function telaMeta(decks) {
 
   const evo = evolucao(decks, linhas.slice(0, 6).map((l) => l.lider));
 
+  // Com poucos decks o percentual engana; avisamos em vez de fingir precisão.
+  const amostraCurta = decks.length < 150;
+  const liderMagro = linhas.filter((l) => l.qtd < 5).length;
+
+  // No recorte do simulador vale mostrar como o mesmo líder vai em torneio de
+  // verdade: os dois metas discordam bastante, e é aí que mora a informação.
+  const noSimulador = estado.filtros.origem === 'sim';
+  const referencia = noSimulador ? shareDeReferencia() : null;
+  const contrastes = referencia ? maioresContrastes(linhas, referencia) : [];
+
   return `
     <h2 class="titulo">Meta share dos líderes</h2>
     <p class="legenda">Quanto cada líder representa dentro dos ${inteiro(decks.length)} decks que bateram os filtros.
-    "Top 4" conta as vezes que o líder terminou em 1º a 4º lugar. O winrate só aparece quando há pelo menos
-    20 partidas com placar informado — muita decklist vem sem o placar.</p>
+    O <b>±</b> é a margem de erro de 95%: quando as faixas de dois líderes se cruzam, eles estão
+    tecnicamente empatados. "Top 4" conta as vezes que o líder terminou em 1º a 4º lugar.</p>
+
+    ${amostraCurta ? `
+      <div class="nota-amostra">
+        <span class="icone">⚠</span>
+        <p>Amostra de <b>${decks.length} listas</b>${liderMagro ? `, e <b>${liderMagro} dos ${linhas.length} líderes</b> aparecem em menos de 5 decks` : ''}.
+        Os percentuais grandes dão para confiar; os do fim da tabela são quase ruído — repare no ±.
+        Para uma leitura mais firme, troque a origem para <b>Torneios</b> ou <b>Tudo</b> lá em cima.</p>
+      </div>` : ''}
 
     <div class="podio">
       ${linhas.slice(0, 4).map((l, i) => `
@@ -78,6 +96,7 @@ export function telaMeta(decks) {
             <div class="podio-pos">${i + 1}º MAIS JOGADO</div>
             <div class="podio-nome" title="${esc(l.nome)}">${esc(l.nome)}</div>
             <div class="podio-share">${pct(l.pct)}</div>
+            <div class="podio-margem">± ${num(l.margem, 1)} pontos</div>
             <div class="podio-sub">${l.qtd} decks · ${l.top4} vez(es) no top 4</div>
           </div>
         </div>`).join('')}
@@ -89,6 +108,29 @@ export function telaMeta(decks) {
       ${kpi(eventos.size, 'eventos distintos')}
       ${kpi(datas.length ? `${formatarData(datas[0])} → ${formatarData(datas[datas.length - 1])}` : '—', 'período coberto')}
     </div>
+
+    ${contrastes.length ? `
+    <div class="secao">
+      <h3>Onde o simulador discorda do torneio</h3>
+      <p class="legenda" style="margin-bottom:12px">Os dois metas não são a mesma coisa. No simulador as pessoas
+      estão testando o que é novo; no torneio presencial elas levam o que confiam. Quem sobe muito de um lado
+      para o outro é a história do formato.</p>
+      <div class="contrastes">
+        ${contrastes.map((c) => `
+          <div class="contraste">
+            ${c.imagem ? `<img src="${esc(c.imagem)}" alt="" onerror="this.style.visibility='hidden'">` : ''}
+            <div class="contraste-info">
+              <div class="contraste-nome">${esc(c.nome)}</div>
+              <div class="contraste-numeros">
+                <span class="contraste-sim">${pct(c.pctSim)}</span>
+                <span class="contraste-seta ${c.delta > 0 ? 'sobe' : 'desce'}">${c.delta > 0 ? '▲' : '▼'}</span>
+                <span class="contraste-tor">${pct(c.pctTorneio)}</span>
+              </div>
+              <div class="contraste-rotulo">simulador → torneio</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
 
     ${evo.periodos.length > 1 ? `
     <div class="secao">
@@ -109,7 +151,7 @@ export function telaMeta(decks) {
           </tr></thead>
           <tbody>
             ${linhas.map((l, i) => `
-              <tr>
+              <tr class="${l.qtd < 5 ? 'poucos' : ''}" title="${l.qtd < 5 ? 'amostra pequena: leia com reserva' : ''}">
                 <td class="num">${i + 1}</td>
                 <td>${celulaLider(l.lider)}</td>
                 <td>${pilulaCor(l.cor)}</td>
@@ -118,6 +160,7 @@ export function telaMeta(decks) {
                   <div style="display:flex;align-items:center;gap:8px">
                     ${barra(l.qtd, maxQtd, corCss(l.cor))}
                     <span style="font-variant-numeric:tabular-nums;font-size:12px">${pct(l.pct)}</span>
+                    <span class="margem">± ${num(l.margem, 1)}</span>
                   </div>
                 </td>
                 <td class="num">${l.top4}</td>
@@ -130,6 +173,32 @@ export function telaMeta(decks) {
         </table>
       </div>
     </div>`;
+}
+
+/** Meta share dos decks de torneio presencial, para servir de comparação. */
+function shareDeReferencia() {
+  const torneio = estado.decks.filter((d) => !d.simulador && (!estado.filtros.completos || d.completo));
+  if (torneio.length < 50) return null; // pouca base para comparar
+
+  const contagem = new Map();
+  for (const d of torneio) contagem.set(d.lider, (contagem.get(d.lider) || 0) + 1);
+
+  const mapa = new Map();
+  for (const [lider, n] of contagem) mapa.set(lider, (n / torneio.length) * 100);
+  return mapa;
+}
+
+/** Os líderes cujo share mais muda entre simulador e torneio. */
+function maioresContrastes(linhas, referencia, quantos = 4) {
+  return linhas
+    // Abaixo de 3 decks a diferença é ruído, não sinal.
+    .filter((l) => l.qtd >= 3)
+    .map((l) => {
+      const pctTorneio = referencia.get(l.lider) ?? 0;
+      return { ...l, pctSim: l.pct, pctTorneio, delta: l.pct - pctTorneio };
+    })
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    .slice(0, quantos);
 }
 
 function graficoLinhas(evo) {

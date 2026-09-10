@@ -1,6 +1,6 @@
 // Liga tudo: carrega os dados, monta os filtros, troca de aba e redesenha.
 
-import { carregarDados, decksFiltrados, opcoes, estado } from './dados.js';
+import { carregarDados, decksFiltrados, opcoes, estado, ORIGENS } from './dados.js';
 import { deckConsenso, metaPorLider } from './analise.js';
 import {
   telaMeta, telaCartas, telaConsenso, telaDecks, telaComparar,
@@ -67,10 +67,15 @@ function montarStatus() {
 function montarFiltros() {
   const o = opcoes();
 
+  // O seletor de origem é o controle principal: simulador x torneio x tudo.
+  $('#f-origem').innerHTML = ORIGENS.map((x) => `
+    <button data-origem="${esc(x.valor)}" class="${estado.filtros.origem === x.valor ? 'ativo' : ''}">
+      ${esc(x.rotulo)}<span class="qtd">${o.porOrigem[x.valor]}</span>
+    </button>`).join('');
+
   const encher = (elemento, valores) => {
-    elemento.innerHTML = `<option value="">Todos</option>` + valores.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    elemento.innerHTML = `<option value="">Todas</option>` + valores.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
   };
-  encher($('#f-formato'), o.formatos);
   encher($('#f-regiao'), o.regioes);
 
   $('#f-fonte').innerHTML = '<option value="">Ambas</option>'
@@ -83,16 +88,48 @@ function montarFiltros() {
 
 function lerFiltros() {
   const f = estado.filtros;
-  f.formato = $('#f-formato').value;
   f.regiao = $('#f-regiao').value;
   f.fonte = $('#f-fonte').value;
   f.periodo = Number($('#f-periodo').value);
   f.completos = $('#f-completos').checked;
-  f.semSimulador = $('#f-semsim').checked;
+}
+
+/** Explica em uma linha o que a origem escolhida significa. */
+function montarNotaOrigem(decks) {
+  const f = estado.filtros;
+  const nota = $('#origem-nota');
+  const n = decks.length;
+
+  const textos = {
+    sim: `Partidas jogadas no <b>OPTCG Sim</b>. O set é novo, então é onde o meta aparece primeiro — mas é gente testando, não resultado de torneio.`,
+    torneio: `Resultados de <b>torneio presencial</b>: flagship, regional, championship e loja.`,
+    tudo: `Simulador e torneio presencial <b>somados</b>.`,
+  };
+
+  const alerta = n < 150
+    ? ` <span class="alerta">Com ${n} listas, cada deck vale ${(100 / n).toFixed(1)} ponto no meta share.</span>`
+    : '';
+
+  nota.innerHTML = textos[f.origem] + alerta;
 }
 
 function ligarEventos() {
-  for (const id of ['#f-formato', '#f-regiao', '#f-fonte', '#f-periodo', '#f-completos', '#f-semsim']) {
+  $('#f-origem').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-origem]');
+    if (!btn) return;
+    estado.filtros.origem = btn.dataset.origem;
+    document.querySelectorAll('#f-origem button').forEach((b) => b.classList.toggle('ativo', b === btn));
+    sel.deckAberto = null;
+    renderizar();
+  });
+
+  $('#btn-mais-filtros').addEventListener('click', () => {
+    const painel = $('#filtros');
+    const aberto = painel.classList.toggle('oculto');
+    $('#btn-mais-filtros').textContent = aberto ? 'mais filtros' : 'menos filtros';
+  });
+
+  for (const id of ['#f-regiao', '#f-fonte', '#f-periodo', '#f-completos']) {
     $(id).addEventListener('change', () => { lerFiltros(); sel.deckAberto = null; renderizar(); });
   }
 
@@ -108,12 +145,10 @@ function ligarEventos() {
   });
 
   $('#btn-limpar').addEventListener('click', () => {
-    $('#f-formato').value = '';
     $('#f-regiao').value = '';
     $('#f-fonte').value = '';
     $('#f-periodo').value = '0';
     $('#f-completos').checked = true;
-    $('#f-semsim').checked = true;
     estado.filtros.torneios.clear();
     document.querySelectorAll('#f-torneios .chip').forEach((c) => c.classList.remove('ativo'));
     lerFiltros();
@@ -201,6 +236,7 @@ function renderizar({ semEndereco = false } = {}) {
   const decks = decksFiltrados();
   if (!semEndereco) escreverEndereco();
 
+  montarNotaOrigem(decks);
   $('#resumo-filtro').innerHTML = `<b>${decks.length.toLocaleString('pt-BR')}</b> de ${estado.decks.length.toLocaleString('pt-BR')} decks`;
 
   const telas = {

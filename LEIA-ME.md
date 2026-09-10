@@ -1,8 +1,37 @@
-# OPTCG Analyzer
+# OPTCG Analyzer — meta do OP17
 
-Site que lê as decklists que deram top no [gumgum.gg](https://gumgum.gg/) e no
-[onepiecetopdecks.com](https://onepiecetopdecks.com/deck-list/) e transforma isso em análise:
+Análise do meta do **OP17 — The World’s Strongest Warriors**, montada a partir das decklists
+do [gumgum.gg](https://gumgum.gg/) e do [onepiecetopdecks.com](https://onepiecetopdecks.com/deck-list/):
 meta share dos líderes, taxa de inclusão de cada carta, deck consenso e comparador de listas.
+
+O projeto acompanha **um formato só**. Quando sair o próximo set, é trocar o alvo em três
+lugares (veja *Trocar de formato*, mais abaixo).
+
+## O controle principal: de onde vêm os resultados
+
+Logo abaixo das abas tem um botão de três posições que muda tudo que o site mostra:
+
+| Origem | O que é |
+|---|---|
+| **Simulador** | Partidas jogadas no OPTCG Sim. É o padrão do site |
+| **Torneios** | Resultado de torneio presencial: flagship, regional, championship, loja |
+| **Tudo** | Os dois somados |
+
+O padrão é o simulador porque o set é novo e é lá que o meta aparece primeiro. Mas a amostra
+do simulador é bem menor, e isso está sinalizado na tela.
+
+### Os dois metas não são a mesma coisa
+
+Essa é a informação mais interessante da base, e o site mostra ela na aba Meta:
+
+| Líder | Simulador | Torneio |
+|---|---|---|
+| Rocks.D.Xebec | 30,1% | 9,2% |
+| Nico Robin | 2,7% | 11,9% |
+| Dracule Mihawk | 16,4% | 24,5% |
+
+No simulador as pessoas testam o que é novo; no torneio elas levam o que confiam. Quem sobe
+muito de um lado para o outro conta a história do formato.
 
 ---
 
@@ -30,7 +59,7 @@ Isso roda os cinco passos em sequência (uns 3 minutos no total):
 | Comando | O que faz |
 |---|---|
 | `npm run atualizar-cartas` | Baixa nome, custo, poder, counter, cor e traços de todas as cartas, da lista oficial da Bandai |
-| `npm run atualizar-gumgum` | Lê as decklists do gumgum.gg |
+| `npm run atualizar-gumgum` | Lê as decklists do gumgum.gg (só as do formato alvo) |
 | `npm run atualizar-topdecks` | Lê as páginas de decklist do onepiecetopdecks.com |
 | `npm run atualizar-precos` | Baixa o preço de cada carta na TCGplayer (pelo espelho tcgcsv.com) |
 | `npm run juntar` | Junta as duas fontes de decklist no `data/decks.json`, que é o arquivo que o site lê |
@@ -39,15 +68,17 @@ Os quatro primeiros salvam arquivos separados (`data/cartas.json`, `data/precos.
 `data/fonte-gumgum.json`, `data/fonte-topdecks.json`). Só o `juntar` produz o `data/decks.json`.
 Se um dos sites cair, os outros seguem atualizando e a junção reaproveita o último arquivo bom da fonte que falhou.
 
-## Acompanhar mais sets
+## Trocar de formato
 
-Isso vale só para o onepiecetopdecks: abra **`scripts/sources.json`**, copie um dos blocos e
-troque a URL, o formato e o rótulo. As URLs saem da
-[página de decklists](https://onepiecetopdecks.com/deck-list/). Depois rode
-`npm run atualizar-topdecks && npm run juntar`.
+Quando sair o próximo set, o alvo precisa mudar em três lugares:
 
-O gumgum.gg não precisa de configuração: ele publica os formatos atuais na página inicial e o
-robô pega o que estiver lá.
+1. `scripts/sources.json` — as URLs das páginas do onepiecetopdecks (saem da
+   [página de decklists](https://onepiecetopdecks.com/deck-list/))
+2. `scripts/coletar-gumgum.mjs` — a constante `FORMATO_ALVO`
+3. `scripts/juntar-decks.mjs` — a constante `FORMATO_ALVO`
+
+Depois rode `npm run atualizar`. O gumgum publica vários formatos na mesma página; o robô
+descarta o que não é do alvo.
 
 ---
 
@@ -119,9 +150,14 @@ O filtro **Fonte**, lá em cima no site, deixa você isolar uma fonte só se qui
 
 ## Sobre as análises
 
-**Meta share** — quanto cada líder representa do total de decks filtrados. O winrate só
-aparece quando há pelo menos 20 partidas com placar informado, porque muita decklist vem
-sem o placar e uma amostra pequena mentiria.
+**Meta share** — quanto cada líder representa do total de decks filtrados, com a **margem de
+erro de 95%** (intervalo de Wilson) ao lado. Isso importa: no recorte do simulador são ~73
+listas, e 30,1% na verdade quer dizer "algo entre 20% e 40%". Quando as faixas de dois líderes
+se cruzam, eles estão tecnicamente empatados. Líder com menos de 5 decks aparece esmaecido, e
+quando a amostra toda fica abaixo de 150 listas o site avisa em cima da tabela.
+
+O winrate só aparece quando há pelo menos 20 partidas com placar informado, porque muita
+decklist vem sem o placar e uma amostra pequena mentiria.
 
 **Estatística de cartas** — para cada carta, em quantos % das listas daquele líder ela
 aparece e quantas cópias em média. As cartas ficam classificadas em **núcleo** (90%+ das
@@ -162,6 +198,10 @@ simplesmente não aparece, em vez de mostrar número errado.
   **"Excluir simulador"** também já vem ligado.
 - A base tem bem mais decks japoneses que ocidentais, porque só uma das duas fontes cobre o
   formato EN. Se você joga no formato ocidental, use o filtro **Região = EN**.
+- **Todo o dado de simulador é EN.** O onepiecetopdecks só marca partidas de sim nas páginas
+  ocidentais, então o recorte "Simulador" nunca vai trazer resultado japonês.
+- Os dados de simulador costumam ficar alguns dias atrás dos de torneio, porque a fonte publica
+  eles em lote. Repare no "período coberto" na aba Meta.
 - O preço é o de mercado na TCGplayer, em dólar, da impressão mais barata. Serve para comparar
   listas, não como orçamento de compra: no Brasil o valor real é outro.
 

@@ -3,15 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OPTCG Analyzer - análise de decks do One Piece Card Game</title>
+<title>OPTCG Analyzer — meta do OP17</title>
 <link rel="stylesheet" href="css/estilo.css">
 </head>
 <body>
 
-<!-- Barra fixa: marca + abas + frescor dos dados, tudo numa linha só
-     para não roubar altura da tela. -->
 <header class="barra-topo">
   <a class="marca" href="./">OPTCG <span>Analyzer</span></a>
+  <span class="selo-formato" id="selo-formato">OP17</span>
 
   <nav class="abas" id="abas">
     <button class="aba ativa" data-tela="meta">Meta</button>
@@ -24,36 +23,38 @@
   <div class="frescor" id="status"><span class="pulso"></span> carregando…</div>
 </header>
 
-<section class="filtros" id="filtros">
+<!-- O controle principal: de onde vêm os resultados que alimentam a análise. -->
+<section class="barra-origem">
+  <div class="origem-bloco">
+    <span class="origem-rotulo">Analisar</span>
+    <div class="segmentado" id="f-origem"></div>
+  </div>
+  <p class="origem-nota" id="origem-nota"></p>
+  <button class="link-botao" id="btn-mais-filtros">mais filtros</button>
+</section>
+
+<section class="filtros oculto" id="filtros">
   <div class="filtros-linha">
-    <div class="campo">
-      <label for="f-formato">Formato</label>
-      <select id="f-formato"><option value="">Todos</option></select>
-    </div>
     <div class="campo">
       <label for="f-regiao">Região</label>
       <select id="f-regiao"><option value="">Todas</option></select>
     </div>
     <div class="campo">
-      <label for="f-fonte">Fonte</label>
+      <label for="f-fonte">Fonte dos dados</label>
       <select id="f-fonte"><option value="">Ambas</option></select>
     </div>
     <div class="campo">
       <label for="f-periodo">Período</label>
       <select id="f-periodo">
         <option value="0">Tudo</option>
+        <option value="7">Últimos 7 dias</option>
         <option value="14">Últimos 14 dias</option>
         <option value="30">Últimos 30 dias</option>
-        <option value="60">Últimos 60 dias</option>
-        <option value="90">Últimos 90 dias</option>
       </select>
     </div>
-
     <div class="campo campo-caixas">
       <label class="caixa"><input type="checkbox" id="f-completos" checked><span>Só listas com 50 cartas</span></label>
-      <label class="caixa"><input type="checkbox" id="f-semsim" checked><span>Excluir simulador</span></label>
     </div>
-
     <div class="filtros-resumo">
       <span class="contagem" id="resumo-filtro">—</span>
       <button class="link-botao" id="btn-limpar">limpar</button>
@@ -61,7 +62,7 @@
   </div>
 
   <div class="filtros-linha filtros-chips">
-    <span class="chips-rotulo">Torneio</span>
+    <span class="chips-rotulo">Tipo de evento</span>
     <div class="chips" id="f-torneios"></div>
   </div>
 </section>
@@ -75,9 +76,11 @@
 
 <footer class="rodape">
   <p>
+    Formato <b>OP17 — The World's Strongest Warriors</b>.
     Decklists: <a href="https://gumgum.gg/" target="_blank" rel="noopener">gumgum.gg</a> e
     <a href="https://onepiecetopdecks.com/deck-list/" target="_blank" rel="noopener">onepiecetopdecks.com</a> ·
-    Dados de carta: <a href="https://en.onepiece-cardgame.com/cardlist/" target="_blank" rel="noopener">lista oficial Bandai</a>.
+    Cartas: <a href="https://en.onepiece-cardgame.com/cardlist/" target="_blank" rel="noopener">Bandai</a> ·
+    Preços: <a href="https://www.tcgplayer.com/" target="_blank" rel="noopener">TCGplayer</a>.
     Projeto de fã, sem vínculo com a Bandai ou a Toei.
   </p>
 </footer>

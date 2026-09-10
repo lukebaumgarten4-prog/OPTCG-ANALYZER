@@ -19,6 +19,10 @@ import { buscarHtml, log, normalizarTorneio } from './lib.mjs';
 const FONTE = 'gumgum';
 const PAGINA = 'https://gumgum.gg/';
 
+// O projeto acompanha so o formato atual. O gumgum publica OP17 e OP16 juntos
+// na mesma pagina, entao filtramos aqui.
+const FORMATO_ALVO = 'OP17';
+
 /** Remonta a carga do Next.js a partir dos pedaços espalhados no HTML. */
 function cargaNext(html) {
   let texto = '';
@@ -160,10 +164,14 @@ async function principal() {
 
   const decks = [];
   let ignorados = 0;
+  let foraDoFormato = 0;
   for (const o of brutos) {
     const d = converter(o);
-    if (d) decks.push(d); else ignorados++;
+    if (!d) { ignorados++; continue; }
+    if (d.formato !== FORMATO_ALVO) { foraDoFormato++; continue; }
+    decks.push(d);
   }
+  log(`${foraDoFormato} de outros formatos foram descartadas (o alvo e ${FORMATO_ALVO})`);
 
   if (decks.length < 50) {
     throw new Error(`so ${decks.length} decks extraidos - algo quebrou, nao vou sobrescrever o arquivo`);

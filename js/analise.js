@@ -6,6 +6,22 @@ import { carta } from './dados.js';
 const media = (nums) => (nums.length ? nums.reduce((s, n) => s + n, 0) / nums.length : null);
 
 /**
+ * Margem de erro do meta share (intervalo de Wilson, 95%).
+ *
+ * Com amostra pequena um percentual engana: 22 decks de 75 dá 29,3%, mas o
+ * intervalo real vai de ~20% a ~40%. Mostrar o ± deixa claro quando dois
+ * líderes estão tecnicamente empatados em vez de fingir precisão que não existe.
+ */
+export function margemErro(acertos, total) {
+  if (!total) return 0;
+  const z = 1.96;
+  const p = acertos / total;
+  const denominador = 1 + (z * z) / total;
+  const margem = (z / denominador) * Math.sqrt((p * (1 - p)) / total + (z * z) / (4 * total * total));
+  return margem * 100;
+}
+
+/**
  * Guarda o resultado por array de entrada. Como o decksFiltrados() devolve
  * sempre o mesmo array enquanto os filtros não mudam, trocar de aba ou digitar
  * na busca deixa de refazer as contas pesadas. WeakMap para não segurar
@@ -57,6 +73,7 @@ function calcularMetaPorLider(decks) {
         vida: c ? c.vida : null,
         qtd: g.decks.length,
         pct: total ? (g.decks.length / total) * 100 : 0,
+        margem: margemErro(g.decks.length, total),
         // "top real": 1o, 2o, 3o ou 4o lugar
         top4: g.decks.filter((d) => d.posicao !== null && d.posicao <= 4).length,
         primeiros: g.decks.filter((d) => d.posicao === 1).length,
@@ -258,6 +275,12 @@ export function evolucao(decks, lideres, semanas = 8) {
   const datas = comData.map((d) => Date.parse(d.dataIso)).sort((a, b) => a - b);
   const fim = datas[datas.length - 1];
   const SEMANA = 7 * 24 * 3600 * 1000;
+
+  // A janela acompanha o que os dados realmente cobrem. Sem isto, um recorte de
+  // duas semanas (o caso do simulador) desenharia seis semanas achatadas no zero.
+  const semanasCobertas = Math.ceil((fim - datas[0]) / SEMANA) + 1;
+  semanas = Math.min(semanas, Math.max(2, semanasCobertas));
+
   const inicio = fim - (semanas - 1) * SEMANA;
 
   const periodos = [];

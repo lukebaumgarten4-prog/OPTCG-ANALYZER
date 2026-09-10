@@ -9,15 +9,24 @@ export const estado = {
   infoPrecos: null,
   infoCartas: null,
   filtros: {
-    formato: '',
+    // De onde vêm os resultados. É o controle principal do site.
+    //   'sim'     -> só partidas do OPTCG Sim (o simulador)
+    //   'torneio' -> só torneio de verdade, presencial
+    //   'tudo'    -> os dois juntos
+    origem: 'sim',
     regiao: '',
     fonte: '',             // vazio = as duas fontes
     torneios: new Set(),   // vazio = todos
     periodo: 0,            // em dias; 0 = tudo
     completos: true,
-    semSimulador: true,
   },
 };
+
+export const ORIGENS = [
+  { valor: 'sim', rotulo: 'Simulador', detalhe: 'OPTCG Sim' },
+  { valor: 'torneio', rotulo: 'Torneios', detalhe: 'presencial' },
+  { valor: 'tudo', rotulo: 'Tudo', detalhe: '' },
+];
 
 // Como cada fonte se chama na tela.
 export const NOME_FONTE = {
@@ -61,7 +70,7 @@ export const nomeCarta = (id) => {
 // Assinatura do estado dos filtros: se ela não mudou, o resultado é o mesmo.
 function assinaturaFiltros() {
   const f = estado.filtros;
-  return [f.formato, f.regiao, f.fonte, f.periodo, f.completos, f.semSimulador, [...f.torneios].sort().join(',')].join('|');
+  return [f.origem, f.regiao, f.fonte, f.periodo, f.completos, [...f.torneios].sort().join(',')].join('|');
 }
 
 let cacheAssinatura = null;
@@ -92,11 +101,11 @@ function calcularFiltrados() {
   }
 
   return estado.decks.filter((d) => {
-    if (f.formato && d.formato !== f.formato) return false;
+    if (f.origem === 'sim' && !d.simulador) return false;
+    if (f.origem === 'torneio' && d.simulador) return false;
     if (f.regiao && d.regiao !== f.regiao) return false;
     if (f.fonte && !d.fontes.includes(f.fonte)) return false;
     if (f.completos && !d.completo) return false;
-    if (f.semSimulador && d.torneio === 'Simulador') return false;
     if (f.torneios.size && !f.torneios.has(d.torneio)) return false;
     if (limite && (!d.dataIso || d.dataIso < limite)) return false;
     return true;
@@ -108,7 +117,11 @@ export function opcoes() {
   const unicos = (fn) => [...new Set(estado.decks.map(fn).filter(Boolean))];
   const fontes = [...new Set(estado.decks.flatMap((d) => d.fontes))].sort();
   return {
-    formatos: unicos((d) => d.formato).sort().reverse(),
+    porOrigem: {
+      sim: estado.decks.filter((d) => d.simulador).length,
+      torneio: estado.decks.filter((d) => !d.simulador).length,
+      tudo: estado.decks.length,
+    },
     regioes: unicos((d) => d.regiao).sort(),
     fontes: fontes.map((valor) => ({
       valor,

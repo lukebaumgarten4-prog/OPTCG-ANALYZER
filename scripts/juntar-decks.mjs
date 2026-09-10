@@ -18,6 +18,9 @@ const ARQUIVOS = [
 
 const CARTAS = 'data/cartas.json';
 
+// O projeto acompanha so o formato atual. Qualquer coisa fora dele nao entra.
+const FORMATO_ALVO = 'OP17';
+
 /** Autores diferentes escrevem o nome de jeitos diferentes; normalizamos para comparar. */
 const chaveAutor = (a) => String(a || '')
   .toLowerCase()
@@ -49,9 +52,11 @@ function principal() {
 
   const porAssinatura = new Map();
   let repetidos = 0;
+  let foraDoFormato = 0;
 
   for (const fonte of fontes) {
     for (const deck of fonte.decks) {
+      if (deck.formato !== FORMATO_ALVO) { foraDoFormato++; continue; }
       // Mesmo lider + mesma data + mesmas 50 cartas = com altissima chance o
       // mesmo resultado publicado nas duas fontes.
       const assinatura = `${deck.dataIso || deck.data}|${assinaturaDeck(deck.lider, deck.cartas)}`;
@@ -79,6 +84,8 @@ function principal() {
   const decks = [...porAssinatura.values()]
     .sort((a, b) => (b.dataIso || '').localeCompare(a.dataIso || ''));
 
+  if (foraDoFormato) log(`${foraDoFormato} decks de outros formatos descartados (o alvo e ${FORMATO_ALVO})`);
+
   const resumo = {};
   for (const d of decks) for (const f of d.fontes) resumo[f] = (resumo[f] || 0) + 1;
 
@@ -88,8 +95,10 @@ function principal() {
     JSON.stringify(
       {
         atualizado: new Date().toISOString(),
+        formato: FORMATO_ALVO,
         total: decks.length,
         repetidosUnificados: repetidos,
+        simulador: decks.filter((d) => d.simulador).length,
         porFonte: resumo,
         fontes: fontes.flatMap((f) => f.fontes || []),
         decks,
@@ -109,6 +118,9 @@ function prepararDeck(deck, cartas) {
   return {
     ...deck,
     cor: deck.cor || (lider ? lider.cor : ''),
+    // Partida de simulador (OPTCG Sim) x resultado de torneio presencial.
+    // A fonte escreve isso de vários jeitos: "sim", "optcgsim", "OP16+ST sim".
+    simulador: deck.torneio === 'Simulador',
     // Vira lista porque um mesmo deck pode ter vindo das duas fontes.
     fontes: [deck.fonte],
   };
