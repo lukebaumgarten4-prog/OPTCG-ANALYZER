@@ -126,6 +126,17 @@ echo.
 pause
 exit /b 0
 
+:erro_commit
+echo.
+echo ============================================================
+echo   NAO CONSEGUI SALVAR SUAS MUDANCAS
+echo ============================================================
+echo.
+echo   Me chame que eu vejo o que aconteceu.
+echo.
+pause
+exit /b 1
+
 :erro_pull
 echo.
 echo ============================================================
